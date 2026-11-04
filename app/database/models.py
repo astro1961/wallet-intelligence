@@ -16,7 +16,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, validates
 
 
 def utc_now() -> datetime:
@@ -82,13 +82,24 @@ class Wallet(Base):
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __init__(self, **kwargs: Any) -> None:
-        address = kwargs.get("address", "")
-        chain_type = kwargs.get("chain_type", "evm")
-        if "address_raw" not in kwargs or kwargs["address_raw"] is None:
-            kwargs["address_raw"] = address
-        if chain_type == "evm" and isinstance(address, str):
-            kwargs["address"] = address.lower()
+        if "chain_type" in kwargs:
+            self.chain_type = kwargs["chain_type"]
+        else:
+            self.chain_type = "evm"
+        raw = kwargs.get("address_raw")
         super().__init__(**kwargs)
+        if raw is not None:
+            self.address_raw = raw
+
+    @validates("address")
+    def validate_address(self, key: str, value: str | None) -> str | None:
+        if not isinstance(value, str):
+            return value
+        self.address_raw = value
+        chain = getattr(self, "chain_type", None) or "evm"
+        if chain == "evm":
+            return value.lower()
+        return value
 
     group: Mapped[WalletGroup | None] = relationship("WalletGroup", back_populates="wallets")
     networks: Mapped[list[WalletNetwork]] = relationship("WalletNetwork", back_populates="wallet")
@@ -312,6 +323,12 @@ class ProjectContract(Base):
     abi: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
+    @validates("contract_address")
+    def validate_contract_address(self, key: str, value: str | None) -> str | None:
+        if isinstance(value, str):
+            return value.lower()
+        return value
+
     project: Mapped[Project] = relationship("Project", back_populates="contracts")
     network: Mapped[Network] = relationship("Network", back_populates="contracts")
 
@@ -472,6 +489,12 @@ class Token(Base):
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     decimals: Mapped[int] = mapped_column(Integer, default=18, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    @validates("contract_address")
+    def validate_contract_address(self, key: str, value: str | None) -> str | None:
+        if isinstance(value, str):
+            return value.lower()
+        return value
 
     network: Mapped[Network] = relationship("Network", back_populates="tokens")
 

@@ -8,6 +8,17 @@ from sqlalchemy.orm import Session
 
 from app.database.models import Wallet, WalletGroup
 
+EDITABLE_WALLET_FIELDS: frozenset[str] = frozenset({
+    "name",
+    "address",
+    "group_id",
+    "notes",
+    "chain_type",
+    "archived",
+    "first_activity_at",
+    "last_activity_at",
+})
+
 
 class WalletRepository:
     """Repository handling CRUD and queries for Wallet records."""
@@ -61,17 +72,20 @@ class WalletRepository:
 
     def update(self, wallet_id: int, **kwargs: Any) -> Wallet | None:
         """Update fields of an existing wallet."""
+        for k in kwargs:
+            if k not in EDITABLE_WALLET_FIELDS:
+                raise ValueError(f"Cannot update non-editable or unknown field '{k}' on Wallet")
+
         wallet = self.get(wallet_id)
         if wallet is None:
             return None
 
+        if "chain_type" in kwargs:
+            wallet.chain_type = kwargs["chain_type"]
+
         for k, v in kwargs.items():
-            if hasattr(wallet, k):
-                if k == "address" and wallet.chain_type == "evm" and isinstance(v, str):
-                    wallet.address_raw = v
-                    wallet.address = v.lower()
-                else:
-                    setattr(wallet, k, v)
+            if k != "chain_type":
+                setattr(wallet, k, v)
 
         self.session.flush()
         return wallet

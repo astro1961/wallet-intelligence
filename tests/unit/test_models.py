@@ -152,3 +152,32 @@ def test_activity_dedupe_constraint(db_session: Session):
     with pytest.raises(IntegrityError):
         db_session.flush()
     db_session.rollback()
+
+
+def test_wallet_address_attribute_assignment_normalization():
+    w = Wallet(address="0xAbCdEf0000000000000000000000000000000001", chain_type="evm")
+    assert w.address == "0xabcdef0000000000000000000000000000000001"
+    assert w.address_raw == "0xAbCdEf0000000000000000000000000000000001"
+
+    w.address = "0xABCDEF0000000000000000000000000000000002"
+    assert w.address == "0xabcdef0000000000000000000000000000000002"
+    assert w.address_raw == "0xABCDEF0000000000000000000000000000000002"
+
+    w_sol = Wallet(address="So1anaAddrCaseSensitive1111", chain_type="solana")
+    assert w_sol.address == "So1anaAddrCaseSensitive1111"
+    w_sol.address = "So1anaNewAddressCaseSensitive2222"
+    assert w_sol.address == "So1anaNewAddressCaseSensitive2222"
+    assert w_sol.address_raw == "So1anaNewAddressCaseSensitive2222"
+
+
+def test_project_contract_and_token_address_normalization():
+    pc = ProjectContract(contract_address="0xAbCdEf0000000000000000000000000000000001", project_id=1, network_id=1)
+    assert pc.contract_address == "0xabcdef0000000000000000000000000000000001"
+    pc.contract_address = "0xABCDEF0000000000000000000000000000000002"
+    assert pc.contract_address == "0xabcdef0000000000000000000000000000000002"
+
+    tok = Token(contract_address="0xAbCdEf0000000000000000000000000000000001", network_id=1, symbol="TEST")
+    assert tok.contract_address == "0xabcdef0000000000000000000000000000000001"
+    tok.contract_address = "0xABCDEF0000000000000000000000000000000002"
+    assert tok.contract_address == "0xabcdef0000000000000000000000000000000002"
+

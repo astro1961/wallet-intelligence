@@ -1,14 +1,17 @@
 """Unit tests for database session and repository layer."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
+import app.database.session as session_mod
 from app.config import AppConfig, DatabaseSection
-from app.database.models import Base, Wallet
+from app.database.models import Base, Wallet, utc_now
 from app.database.repository import GroupRepository, WalletRepository
 from app.database.session import get_session, init_db
 
@@ -138,3 +141,68 @@ def test_session_init_and_context_manager(tmp_path: Path):
     with get_session() as s:
         w = s.query(Wallet).filter_by(address="0x5555555555555555555555555555555555555555").first()
         assert w is None
+
+
+def test_wallet_repository_update_restrictions(repo_session: Session):
+    repo = WalletRepository(repo_session)
+    w = repo.add(address="0x1111111111111111111111111111111111111111", name="Original")
+
+    # Allowed fields can be updated
+    updated = repo.update(
+        w.id,
+        name="NewName",
+        notes="Some notes",
+        archived=True,
+        chain_type="evm",
+        address="0x2222222222222222222222222222222222222222",
+    )
+    assert updated is not None
+    assert updated.name == "NewName"
+    assert updated.notes == "Some notes"
+    assert updated.archived is True
+    assert updated.address == "0x2222222222222222222222222222222222222222"
+
+    # Restricted fields raise ValueError
+    with pytest.raises(ValueError, match="Cannot update"):
+        repo.update(w.id, id=999)
+
+    with pytest.raises(ValueError, match="Cannot update"):
+        repo.update(w.id, created_at=utc_now())
+
+    with pytest.raises(ValueError, match="Cannot update"):
+        repo.update(w.id, address_raw="tampered")
+
+    with pytest.raises(ValueError, match="Cannot update"):
+        repo.update(w.id, non_existent_column="bad")
+
+
+def test_init_db_does_not_mutate_wit_db_path_env(tmp_path: Path):
+    db_file = tmp_path / "env_test.db"
+    cfg = AppConfig(database=DatabaseSection(path=str(db_file)))
+    old_env = os.environ.get("WIT_DB_PATH")
+    try:
+        if "WIT_DB_PATH" in os.environ:
+            del os.environ["WIT_DB_PATH"]
+        init_db(cfg)
+        assert "WIT_DB_PATH" not in os.environ, "init_db mutated os.environ['WIT_DB_PATH']"
+    finally:
+        if old_env is not None:
+            os.environ["WIT_DB_PATH"] = old_env
+        else:
+            os.environ.pop("WIT_DB_PATH", None)
+
+
+def test_init_db_disposes_previous_engine(tmp_path: Path):
+    db1 = tmp_path / "db1.db"
+    cfg1 = AppConfig(database=DatabaseSection(path=str(db1)))
+    engine1 = session_mod.init_db(cfg1)
+
+    engine1.dispose = MagicMock(wraps=engine1.dispose)
+
+    db2 = tmp_path / "db2.db"
+    cfg2 = AppConfig(database=DatabaseSection(path=str(db2)))
+    engine2 = session_mod.init_db(cfg2)
+
+    assert engine1.dispose.called, "Previous engine was not disposed when re-calling init_db"
+    assert engine2 is not engine1
+

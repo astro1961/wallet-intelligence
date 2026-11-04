@@ -1,7 +1,7 @@
 """Database engine, session management, and initialization."""
 from __future__ import annotations
 
-import os
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import AppConfig, load_config
 from app.database.models import Base
+
+logger = logging.getLogger(__name__)
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
@@ -42,7 +44,8 @@ def init_db(cfg: AppConfig | None = None) -> Engine:
     if cfg is None:
         cfg = load_config()
 
-    os.environ["WIT_DB_PATH"] = cfg.database.path
+    if _engine is not None:
+        _engine.dispose()
 
     db_file = Path(cfg.database.path)
     if db_file.parent and str(db_file.parent) != ".":
@@ -58,12 +61,18 @@ def init_db(cfg: AppConfig | None = None) -> Engine:
         try:
             from alembic import command
             from alembic.config import Config
+            from alembic.util.exc import CommandError
+            from sqlalchemy.exc import SQLAlchemyError
 
             alembic_cfg = Config(str(alembic_ini_path))
             alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{cfg.database.path}")
             command.upgrade(alembic_cfg, "head")
             migrated = True
-        except (ImportError, OSError, Exception):  # noqa: BLE001
+        except ImportError as e:
+            logger.warning("Alembic is not installed, falling back to create_all: %s", e)
+            migrated = False
+        except (CommandError, SQLAlchemyError) as e:
+            logger.warning("Alembic migration failed, falling back to create_all: %s", e)
             migrated = False
 
     if not migrated:

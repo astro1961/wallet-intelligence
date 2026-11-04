@@ -112,3 +112,100 @@ in settings.json (e.g. command(<target>)). Alternatively, re-run with
 `rm` и sudo намеренно не выданы. Проверено пробой: `--settings '{"permissions":{"allow":["command(echo)"]}}'`
 → агент реально выполнил `echo PERMS_OK` (14 с). Конфиг пользователя не изменён.
 
+---
+
+## 2026-11-04 18:24 — Этап 1A: прогон завершён, приёмка Hermes
+
+**Прогон:** 1313 с (22 мин), 1 ход, 387k токенов (из них 8.5M cache-read), `status=SUCCESS`,
+`denied_actions` нет. Ответ агента — отчёт на русском с таблицей файлов и выводами команд.
+
+**Проверено лично (не по словам агента):**
+
+| Проверка | Команда | Результат |
+|---|---|---|
+| хеш гейта не изменён | `sha256sum acceptance/gate_stage1a.py` | `b1f6d227…934b` = пин |
+| тесты агента | `.venv/bin/python -m pytest -q` | `21 passed in 10.67s` |
+| независимый гейт v1 | `.venv/bin/python -m pytest acceptance/gate_stage1a.py -q` | `13 passed` |
+| линтер | `.venv/bin/ruff check .` | `All checks passed!` |
+| `main.py --version` | `.venv/bin/python main.py --version` | `Wallet Intelligence Tracker 0.1.0` |
+| `main.py` без аргументов | `.venv/bin/python main.py` | создал БД, миграция 001 применилась, сообщение «TUI (Stage 1B) не реализован», exit 0 |
+| миграция с нуля | `WIT_DB_PATH=/tmp/wit_fresh.db alembic upgrade head` | `Running upgrade -> 001_initial_schema`, 23 таблицы (22 модели + alembic_version) |
+
+**Что сделано агентом:** `pyproject.toml` + `uv.lock` (Python 3.12 запинен через
+`.python-version`, venv 82 МБ), `config.yaml`, `.env.example`, `.gitignore`, `README.md`,
+`main.py`, `app/config.py` (97), `app/database/models.py` (636, 23 класса), `session.py`,
+`repository.py` (167), `app/utils/logging.py` (116, маскирование), `migrations/`,
+`tests/unit` 5 файлов + `tests/integration` (миграции).
+
+**Найдено моим ревью (гейт v1 был слишком мягким — это урок для следующих этапов):**
+
+1. **B1 — «миграция» фиктивная:** ревизия `001_initial_schema` = 30 строк,
+   внутри `Base.metadata.create_all(op.get_bind())`. Это не DDL, а `create_all` под видом
+   ревизии: история не воспроизводима, autogenerate не увидит diff, downgrade бессмыслен.
+2. **B2 — нормализация адреса только в `__init__`:** присваивание `w.address = "0xAB…"`
+   оставляет uppercase → гарантия дедупа `(address, chain_type)` держится на дисциплине
+   вызывающего кода.
+3. **H1 — `init_db` глушит ошибки:** `except (ImportError, OSError, Exception)` → любая
+   ошибка миграции молча подменяется `create_all`; плюс побочный эффект
+   `os.environ["WIT_DB_PATH"] = …`; повторный `init_db` не делает `dispose()` старого engine.
+4. **H2 — `WalletRepository.update()`** использует `hasattr` как белый список → можно
+   переписать `id`, `created_at`, `address_raw`.
+
+**Урок:** гейт должен проверять *качество артефакта*, а не только его наличие. Проверка
+«таблицы существуют» пропустила фиктивную миграцию. Добавлены три проверки в гейт v2.
+
+**Гейт v2 (16 проверок), новый пин:**
+```
+sha256  acceptance/gate_stage1a.py   (v2)
+```
+Добавлено: `test_migration_contains_real_ddl` (>=20 `op.create_table`, запрет `create_all`
+и импорта живых моделей), `test_address_normalized_on_attribute_assignment`,
+`test_init_db_is_idempotent`. Прогон v2 на текущем коде: `2 failed, 14 passed` —
+ровно B1 и B2, ложных срабатываний нет.
+
+**Итерация:** заведён `tasks/stage1a_fix.md` (B1, B2, H1, H2 + Definition of Done),
+запущен второй прогон AGY в том же каталоге (сессионные права те же).
+
+---
+
+## 2026-11-04 18:48 — Второй прогон: частичный успех, упёрлись в права
+
+**Результат:** 501 с, `status=SUCCESS`, `response=""`, 0 файлов итогового отчёта,
+`denied_actions: [{action: command}]` — третий раз та же ловушка «зелёный конверт при
+невыполненной работе».
+
+**Что успело сделаться (проверено на диске и тестами):** B2 (валидаторы адресов на
+`Wallet`/`ProjectContract`/`Token`), H1 (session.py без мутации env, узкий `except`,
+`dispose()`), H2 (белый список полей в `update`). Автотесты: `25 passed, 2 failed` —
+падения ровно там, где работа не закончена.
+
+**Причина блокировки (найдена в `steps` конверсации AGY, sqlite-таблица `steps`):**
+```
+mv migrations/versions/001_initial_schema.py /tmp/001_backup.py && rm -f /tmp/scratch_generate.db
+  && WIT_DB_PATH=/tmp/scratch_generate.db uv run alembic revision --autogenerate -m "tmp"
+```
+Запрещённой оказалась часть `rm`. Проверено пробами:
+- `command(echo)` + `echo A && echo B` → **разрешено** (составные команды матчатся по частям);
+- `command(rm -f /tmp)` + `rm -f /tmp/permprobe.txt` → **отказано** (правило матчится как
+  префикс по границе токена; `/tmp/permprobe.txt` не начинается с `/tmp` + пробел).
+
+**Вывод — правила для будущих прогонов:**
+1. Allow-правило = префикс командной строки по границе токена. `command(uv)` покрывает
+   `uv run …`, но `command(rm -f /tmp)` не покрывает `rm -f /tmp/x.txt`. Нужен `command(rm)`.
+2. `rm` намеренно не давали в первом прогоне — и именно он остановил работу на 8-й минуте.
+   В третьем прогоне добавлен `command(rm)`, а в задание — запрет удалять что-либо вне
+   проекта и `/tmp` и требование удалять файлы через `python -c "os.remove(...)"`.
+3. Хуже: агент склеивает `VAR=value cmd` и `cmd1 && cmd2 && cmd3`. Даже с разрешёнными
+   частями такие строки рискованны — в задание добавлен «run protocol»: одна команда на
+   вызов, без `&&`, без env-префиксов.
+4. `status=SUCCESS` + пустой `response` + `denied_actions` — единственный надёжный признак
+   «прогон умер на правах». Проверять это до чтения отчёта.
+
+**Также найдено:** `test_session_init_and_context_manager` проходит в одиночку и падает в
+полном прогоне → глобальный `_engine`/`_session_factory` в `session.py` течёт между тестами.
+Заведён B3 (явная фабрика сессий) в `tasks/stage1a_fix2.md`.
+
+**Третий прогон запущен** (те же права + `command(rm)`, «run protocol» в задании).
+
+
+

@@ -275,3 +275,62 @@ def test_project_has_unit_tests():
     assert len(files) >= 3, f"expected >=3 unit test files from the agent, got {len(files)}"
     total = sum(len(f.read_text(encoding='utf-8').splitlines()) for f in files)
     assert total >= 120, f"agent tests look like stubs ({total} lines total)"
+
+
+# --- gate v2 additions (2026-11-04, after 1A review) -------------------------
+
+def test_migration_contains_real_ddl():
+    versions = sorted((ROOT / "migrations" / "versions").glob("*.py"))
+    assert versions, "no revisions"
+    text = "\n".join(v.read_text(encoding="utf-8") for v in versions)
+    creates = text.count("op.create_table(")
+    assert creates >= 20, f"revision emits only {creates} op.create_table() calls"
+    assert "create_all" not in text, \
+        "migration delegates to Base.metadata.create_all — not a reproducible revision"
+    assert "from app.database.models import" not in text, \
+        "migration imports live models; historical revisions must be frozen DDL"
+
+
+def test_address_normalized_on_attribute_assignment(tmp_path):
+    db = tmp_path / "norm.db"
+    code = r"""
+from app.config import load_config
+from app.database.session import init_db
+from app.database import models as m
+
+init_db(load_config())
+w = m.Wallet(address="0xAbCdEf0000000000000000000000000000000001", name="n")
+print("INIT:" + w.address)
+w.address = "0xABCDEF0000000000000000000000000000000002"
+print("SET:" + w.address)
+w2 = m.Wallet(address="So1anaAddrCaseSensitive1111", chain_type="solana")
+print("SOL:" + w2.address)
+"""
+    p = run(code, env={"WIT_DB_PATH": str(db)})
+    assert p.returncode == 0, p.stderr
+    lines = dict(l.split(":", 1) for l in p.stdout.strip().splitlines() if ":" in l)
+    assert lines.get("INIT", "").islower(), f"constructor did not normalize: {lines.get('INIT')}"
+    assert lines.get("SET", "").islower(), \
+        f"assignment did not normalize EVM address: {lines.get('SET')}"
+    assert lines.get("SOL") == "So1anaAddrCaseSensitive1111", \
+        "solana address must keep its case"
+
+
+def test_init_db_is_idempotent(tmp_path):
+    db = tmp_path / "idem.db"
+    code = r"""
+from app.config import load_config
+from app.database.session import init_db
+from sqlalchemy import create_engine, inspect
+
+cfg = load_config()
+init_db(cfg)
+init_db(cfg)
+n = len(inspect(create_engine("sqlite:///" + cfg.database.path)).get_table_names())
+print("TABLES:%d" % n)
+"""
+    p = run(code, env={"WIT_DB_PATH": str(db)})
+    assert p.returncode == 0, f"second init_db failed:\n{p.stderr}"
+    n = int(p.stdout.split("TABLES:")[1].split("\n")[0])
+    assert n >= len(EXPECTED_MODELS), f"tables lost after second init: {n}"
+
