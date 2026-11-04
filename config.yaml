@@ -10,14 +10,14 @@ providers:
   etherscan:
     enabled: true
     api_key_env: "ETHERSCAN_API_KEY"
-    base_url: "https://api.etherscan.io/api"
+    base_url: "https://api.etherscan.io/v2/api"
   blockscout:
     enabled: true
     api_key_env: "BLOCKSCOUT_API_KEY"
-    base_url: "https://eth.blockscout.com/api"
+    base_url: "https://api.blockscout.com"
   defillama:
     enabled: true
-    base_url: "https://api.llama.fi"
+    base_url: "https://coins.llama.fi"
 
 networks:
   - name: "Ethereum"

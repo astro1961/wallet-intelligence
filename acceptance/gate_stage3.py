@@ -297,6 +297,64 @@ with session_scope(factory) as s:
     assert get(o, "UTC:") == "True"
 
 
+FROZEN_REVISIONS = {
+    "001_initial_schema.py": "d200e1c2e1b489404465f03a2f0a902d48c550a0f9a10e4c3daf67b9884c85db",
+    "002_wallet_audit_log.py": "f5786ff12400a5d7cc8fb906e92489e20e9cbf1ebd0a4c579b128221ed804cd7",
+}
+
+
+def test_frozen_revisions_untouched():
+    """Applied history must never be rewritten: schema changes go into a NEW revision."""
+    import hashlib
+
+    versions = ROOT / "migrations" / "versions"
+    for name, expected in FROZEN_REVISIONS.items():
+        path = versions / name
+        assert path.is_file(), f"frozen revision disappeared: {name}"
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert actual == expected, (
+            f"{name} was edited after being applied. Frozen revisions are immutable — "
+            f"add a new revision (003_…) with op.add_column/op.create_table instead."
+        )
+
+
+def test_schema_matches_models_after_upgrade(tmp_path):
+    """A DB built by migrations must carry the columns the models declare."""
+    import os
+    import sqlite3
+
+    db = tmp_path / "schema.db"
+    env = {k: v for k, v in os.environ.items() if not k.startswith("WIT_")}
+    env["WIT_DB_PATH"] = str(db)
+    env["PYTHONPATH"] = str(ROOT)
+    p = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"],
+                       cwd=ROOT, env=env, capture_output=True, text=True, timeout=240)
+    assert p.returncode == 0, f"upgrade failed:\n{p.stdout}\n{p.stderr}"
+    con = sqlite3.connect(db)
+    live = {t: {r[1] for r in con.execute(f'PRAGMA table_info("{t}")')}
+            for (t,) in con.execute("select name from sqlite_master where type='table'")}
+    code = (
+        "from app.database.models import Base\n"
+        "for t, table in Base.metadata.tables.items():\n"
+        "    print('T|%s|%s' % (t, ','.join(c.name for c in table.columns)))\n"
+    )
+    p2 = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
+                        capture_output=True, text=True, timeout=120)
+    assert p2.returncode == 0, p2.stderr
+    missing = []
+    for line in p2.stdout.strip().splitlines():
+        if not line.startswith("T|"):
+            continue
+        _, table, cols = line.split("|", 2)
+        if table not in live:
+            missing.append(f"{table}: whole table absent")
+            continue
+        absent = [c for c in cols.split(",") if c not in live[table]]
+        if absent:
+            missing.append(f"{table}: {absent}")
+    assert not missing, f"migrations do not produce the model schema: {missing}"
+
+
 def test_providers_layer_is_isolated():
     prov = ROOT / "app" / "providers"
     assert prov.is_dir()
