@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from textual.containers import Grid, Vertical
 from textual.css.query import NoMatches
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Label, Static
 
 from app.database.models import Activity, Project, Wallet, WalletGroup
 from app.ui.screens.base import BaseAppScreen
@@ -64,11 +64,11 @@ class DashboardScreen(BaseAppScreen):
         counts = self.get_counters()
 
         yield Label("📊 Dashboard", classes="screen-title")
-        yield Label(
+        yield Static(
             "Portfolio overview, wallet counts, active projects, recent activities and sync status.",
             classes="screen-desc",
         )
-        yield Label(
+        yield Static(
             "Stage 1B: database counters. Full live portfolio aggregation coming in Stage 4–6.",
             classes="screen-stage",
         )

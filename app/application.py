@@ -154,12 +154,15 @@ class WalletTrackerApp(App):
         self.exit(0)
 
     def action_add_wallet(self) -> None:
-        """Notify that Add Wallet is scheduled for Stage 2."""
-        self.notify("Add Wallet modal dialog will be implemented in Stage 2", title="Stage 2 — Add Wallet")
+        """Open Add Wallet modal dialog."""
+        if hasattr(self.screen, "action_add_wallet"):
+            self.screen.action_add_wallet()
+        else:
+            self.nav_to("wallets")
 
     def action_import_wallets(self) -> None:
-        """Notify that Import Wallets wizard is scheduled for Stage 2."""
-        self.notify("Import Wallets parser & wizard will be implemented in Stage 2", title="Stage 2 — Import")
+        """Switch to Import Wallets screen."""
+        self.nav_to("import")
 
     action_action_import = action_import_wallets
 
@@ -184,8 +187,11 @@ class WalletTrackerApp(App):
         self.notify("NetworkX relationship graph canvas scheduled for Stage 7", title="Stage 7 — Graph")
 
     def action_search(self) -> None:
-        """Notify that Global Search is scheduled for Stage 2."""
-        self.notify("Global address and metadata search scheduled for Stage 2", title="Stage 2 — Search")
+        """Search hotkey handler."""
+        if hasattr(self.screen, "action_focus_search"):
+            self.screen.action_focus_search()
+        else:
+            self.notify("Global address and metadata search scheduled for Stage 2", title="Stage 2 — Search")
 
     def action_escape(self) -> None:
         """Return to dashboard screen or close active dialog."""

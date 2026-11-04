@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Label, Static
 
 from app.ui.screens.base import BaseAppScreen
 
@@ -18,11 +18,11 @@ class SettingsScreen(BaseAppScreen):
 
     def compose_content(self) -> Iterable[Widget]:
         yield Label("⚙ Settings", classes="screen-title")
-        yield Label(
+        yield Static(
             "Configure application parameters, database location, provider API keys, and backups.",
             classes="screen-desc",
         )
-        yield Label(
+        yield Static(
             "Stage 8 will deliver interactive configuration editing, secret key management, and database backup/restore.",
             classes="screen-stage",
         )

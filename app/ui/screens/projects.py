@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Label, Static
 
 from app.ui.screens.base import BaseAppScreen
 from app.ui.widgets.data_table import DataTable
@@ -19,11 +19,11 @@ class ProjectsScreen(BaseAppScreen):
 
     def compose_content(self) -> Iterable[Widget]:
         yield Label("🚀 Projects & Testnets", classes="screen-title")
-        yield Label(
+        yield Static(
             "Directory of crypto projects, testnets, smart contracts, and task checklists.",
             classes="screen-desc",
         )
-        yield Label(
+        yield Static(
             "Stage 5 will deliver project catalog, contract registry, participation reports, and tasks.",
             classes="screen-stage",
         )

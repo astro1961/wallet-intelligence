@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Label, Static
 
 from app.ui.screens.base import BaseAppScreen
 
@@ -18,11 +18,11 @@ class GraphScreen(BaseAppScreen):
 
     def compose_content(self) -> Iterable[Widget]:
         yield Label("🕸 Relationship Graph", classes="screen-title")
-        yield Label(
+        yield Static(
             "Visualize and explore on-chain relationships, interactions, and entity clusters.",
             classes="screen-desc",
         )
-        yield Label(
+        yield Static(
             "Stage 7 will deliver NetworkX graph analysis, neighbor lists, confidence levels, and exports.",
             classes="screen-stage",
         )

@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Label, Static
 
 from app.ui.screens.base import BaseAppScreen
 from app.ui.widgets.data_table import DataTable
@@ -19,11 +19,11 @@ class DeFiScreen(BaseAppScreen):
 
     def compose_content(self) -> Iterable[Widget]:
         yield Label("🏦 DeFi Positions", classes="screen-title")
-        yield Label(
+        yield Static(
             "Analyze confirmed and inferred DeFi positions, token balances, and protocol metrics.",
             classes="screen-desc",
         )
-        yield Label(
+        yield Static(
             "Stage 6 will deliver token balances, DeFiLlama protocol integrations, and position breakdowns.",
             classes="screen-stage",
         )

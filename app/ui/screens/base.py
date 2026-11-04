@@ -7,9 +7,10 @@ from contextlib import suppress
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
+from textual.events import Resize
 from textual.screen import Screen
 from textual.widget import Widget
-from textual.widgets import Label, ListItem, ListView
+from textual.widgets import Label, ListItem, ListView, Static
 
 from app.ui.widgets.status_bar import StatusBar
 
@@ -24,7 +25,43 @@ SECTION_ITEMS: list[tuple[str, str]] = [
     ("import", "8. Import"),
     ("settings", "9. Settings"),
 ]
+SHORT_SECTION_ITEMS: list[tuple[str, str]] = [
+    ("dashboard", "1. 📊"),
+    ("wallets", "2. 👛"),
+    ("activities", "3. ⚡"),
+    ("projects", "4. 📁"),
+    ("defi", "5. 🏦"),
+    ("networks", "6. 🌐"),
+    ("graph", "7. 🕸️"),
+    ("import", "8. 📥"),
+    ("settings", "9. ⚙️"),
+]
 SECTION_KEYS: list[str] = [k for k, _ in SECTION_ITEMS]
+
+
+class HotkeyBar(Static):
+    """Dynamic bottom hotkey bar that reflows and shortens labels based on width."""
+
+    def render(self) -> str:
+        w = self.size.width
+        if w <= 0:
+            w = self.app.size.width if self.app else 120
+        avail = max(0, w - 2)
+        full = "1-9 Sections  │  a Add  │  i Import  │  r Refresh  │  f Filter  │  g Graph  │  / Search  │  Esc Home  │  q Quit"
+        med = "1-9 Sections │ a Add │ i Import │ r Refresh │ f Filter │ g Graph │ / Search │ Esc │ q Quit"
+        short = "1-9 Nav │ a Add │ i Imp │ r Ref │ f Flt │ g Grp │ / Find │ Esc │ q Quit"
+        tiny = "1-9 | a | i | r | f | g | / | Esc | q"
+
+        if len(full) <= avail and w >= 120:
+            return full
+        if len(med) <= avail and w >= 90:
+            return med
+        if len(short) <= avail and w >= 65:
+            return short
+        return tiny
+
+    def on_resize(self, event: Resize) -> None:
+        self.refresh()
 
 
 class BaseAppScreen(Screen):
@@ -53,10 +90,7 @@ class BaseAppScreen(Screen):
             with VerticalScroll(id="content-area"):
                 yield from self.compose_content()
 
-        yield Label(
-            "1-9 Sections  │  a Add  │  i Import  │  r Refresh  │  f Filter  │  g Graph  │  / Search  │  Esc Home  │  q Quit",
-            id="bottom-bar",
-        )
+        yield HotkeyBar(id="bottom-bar")
 
     def compose_content(self) -> Iterable[Widget]:
         """Override in subclasses to provide screen-specific content."""
@@ -75,6 +109,31 @@ class BaseAppScreen(Screen):
             for sb in self.query(StatusBar):
                 sb.sync_state = self.app.state.sync_state
                 sb.last_update = self.app.state.last_update
+
+        # Check initial width
+        if self.app and self.app.size.width < 70:
+            self._apply_narrow_mode(True)
+
+    def on_resize(self, event: Resize) -> None:
+        """Handle screen resize: toggle narrow layout at narrow widths."""
+        is_narrow = event.size.width < 70
+        self._apply_narrow_mode(is_narrow)
+        with suppress(NoMatches, Exception):
+            self.query_one("#bottom-bar", HotkeyBar).refresh()
+
+    def _apply_narrow_mode(self, is_narrow: bool) -> None:
+        """Toggle narrow class and update sidebar labels."""
+        if is_narrow:
+            self.add_class("narrow")
+        else:
+            self.remove_class("narrow")
+
+        items = SHORT_SECTION_ITEMS if is_narrow else SECTION_ITEMS
+        with suppress(NoMatches, Exception):
+            for key, label in items:
+                item = self.query_one(f"#nav_{key}", ListItem)
+                lbl = item.query_one(Label)
+                lbl.update(label)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle sidebar item click or Enter selection."""
