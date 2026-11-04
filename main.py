@@ -32,17 +32,14 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
-    if args.config:
-        os.environ["WIT_CONFIG"] = args.config
-    if args.db:
-        os.environ["WIT_DB_PATH"] = args.db
-
     # Setup logging
     logger = setup_logging(level=args.log_level)
     logger.info("Initializing Wallet Intelligence Tracker...")
 
     # Load configuration
     cfg = load_config(args.config)
+    if args.db:
+        cfg.database.path = args.db
 
     # Initialize database
     init_db(cfg)

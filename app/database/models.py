@@ -82,10 +82,7 @@ class Wallet(Base):
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     def __init__(self, **kwargs: Any) -> None:
-        if "chain_type" in kwargs:
-            self.chain_type = kwargs["chain_type"]
-        else:
-            self.chain_type = "evm"
+        self.chain_type = kwargs.get("chain_type", "evm")
         raw = kwargs.get("address_raw")
         super().__init__(**kwargs)
         if raw is not None:

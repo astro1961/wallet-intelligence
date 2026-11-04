@@ -1,7 +1,6 @@
 """Alembic environment configuration."""
 from __future__ import annotations
 
-import os
 from logging.config import fileConfig
 from pathlib import Path
 
@@ -19,9 +18,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set DB URL dynamically from config (honouring WIT_DB_PATH and existing main_option)
+# Set DB URL dynamically from config (honouring existing main_option and WIT_DB_PATH)
 existing_url = config.get_main_option("sqlalchemy.url")
-if existing_url and "WIT_DB_PATH" not in os.environ:
+if existing_url:
     db_path = existing_url.replace("sqlite:///", "")
     db_file = Path(db_path)
     if db_file.parent and str(db_file.parent) != ".":

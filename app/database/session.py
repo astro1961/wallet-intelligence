@@ -18,6 +18,34 @@ _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
 
 
+def session_factory(engine: Engine) -> sessionmaker[Session]:
+    """Create a session factory bound to the given engine."""
+    return sessionmaker(bind=engine, expire_on_commit=False)
+
+
+@contextmanager
+def session_scope(factory: sessionmaker[Session]) -> Generator[Session, None, None]:
+    """Provide a transactional scope around a series of operations."""
+    session = factory()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def reset_db() -> None:
+    """Dispose current engine and reset global state."""
+    global _engine, _session_factory
+    if _engine is not None:
+        _engine.dispose()
+        _engine = None
+    _session_factory = None
+
+
 def create_engine_for(cfg: AppConfig) -> Engine:
     """Create a SQLAlchemy Engine with foreign key enforcement and connection settings."""
     db_path = cfg.database.path
@@ -52,7 +80,7 @@ def init_db(cfg: AppConfig | None = None) -> Engine:
         db_file.parent.mkdir(parents=True, exist_ok=True)
 
     _engine = create_engine_for(cfg)
-    _session_factory = sessionmaker(bind=_engine, expire_on_commit=False)
+    _session_factory = session_factory(_engine)
 
     # Prefer programmatic alembic migration, fallback to Base.metadata.create_all
     migrated = False
@@ -88,12 +116,5 @@ def get_session() -> Generator[Session, None, None]:
         init_db()
 
     assert _session_factory is not None
-    session = _session_factory()
-    try:
+    with session_scope(_session_factory) as session:
         yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()

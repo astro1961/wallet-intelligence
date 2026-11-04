@@ -13,7 +13,13 @@ import app.database.session as session_mod
 from app.config import AppConfig, DatabaseSection
 from app.database.models import Base, Wallet, utc_now
 from app.database.repository import GroupRepository, WalletRepository
-from app.database.session import get_session, init_db
+from app.database.session import (
+    get_session,
+    init_db,
+    reset_db,
+    session_factory,
+    session_scope,
+)
 
 
 @pytest.fixture
@@ -205,4 +211,31 @@ def test_init_db_disposes_previous_engine(tmp_path: Path):
 
     assert engine1.dispose.called, "Previous engine was not disposed when re-calling init_db"
     assert engine2 is not engine1
+
+
+def test_explicit_session_factory_and_scope(tmp_path: Path):
+    db_file = tmp_path / "explicit_sess.db"
+    cfg = AppConfig(database=DatabaseSection(path=str(db_file)))
+    engine = init_db(cfg)
+
+    factory = session_factory(engine)
+    with session_scope(factory) as s:
+        s.add(Wallet(address="0x6666666666666666666666666666666666666666", name="ExplicitWallet"))
+
+    with session_scope(factory) as s:
+        w = s.query(Wallet).filter_by(address="0x6666666666666666666666666666666666666666").first()
+        assert w is not None
+        assert w.name == "ExplicitWallet"
+
+
+def test_reset_db():
+    cfg = AppConfig(database=DatabaseSection(path=":memory:"))
+    engine = init_db(cfg)
+    assert session_mod._engine is engine
+    assert session_mod._session_factory is not None
+
+    reset_db()
+    assert session_mod._engine is None
+    assert session_mod._session_factory is None
+
 
