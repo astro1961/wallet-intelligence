@@ -8,6 +8,7 @@ from app.config import AppConfig, load_config
 from app.providers.base import DataProvider
 from app.providers.blockscout import BlockscoutProvider
 from app.providers.defillama import DefiLlamaProvider
+from app.providers.etherscan import EtherscanProvider
 from app.providers.evm_rpc import EvmRpcProvider
 from app.providers.registry import ProviderRegistry
 
@@ -47,7 +48,27 @@ def create_provider_registry(cfg: AppConfig | None = None) -> ProviderRegistry:
                 )
             )
 
-    # 2. EVM JSON-RPC Provider
+    # 2. Etherscan Provider (failover)
+    es_cfg = cfg.providers.get("etherscan")
+    if es_cfg and es_cfg.enabled:
+        es_key_env = es_cfg.api_key_env or "ETHERSCAN_API_KEY"
+        es_api_key = os.getenv(es_key_env)
+        if not es_api_key:
+            logger.warning(
+                "Etherscan provider disabled: environment variable '%s' not set",
+                es_key_env,
+            )
+        else:
+            es_base_url = es_cfg.base_url or "https://api.etherscan.io/v2/api"
+            providers.append(
+                EtherscanProvider(
+                    api_key=es_api_key,
+                    base_url=es_base_url,
+                    default_chain_id=1,
+                )
+            )
+
+    # 3. EVM JSON-RPC Provider
     # Look for first EVM network with an RPC URL configured
     rpc_url: str | None = None
     for net in cfg.networks:

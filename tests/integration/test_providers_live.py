@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from app.providers.base import ProviderStatus
 from app.providers.blockscout import BlockscoutProvider
+from app.providers.etherscan import EtherscanProvider
 
 load_dotenv()
 
@@ -46,3 +47,41 @@ def test_blockscout_live_vitalik_balance_and_latest_block():
     health_res = provider.health_check("ethereum")
     assert health_res.status == ProviderStatus.OK
     assert health_res.data > 26_000_000
+
+
+@pytest.mark.live
+def test_etherscan_live_and_cross_check_with_blockscout():
+    bs_key = os.getenv("BLOCKSCOUT_API_KEY")
+    es_key = os.getenv("ETHERSCAN_API_KEY")
+    if not bs_key:
+        pytest.skip("BLOCKSCOUT_API_KEY not configured in environment")
+    if not es_key:
+        pytest.skip("ETHERSCAN_API_KEY not configured in environment")
+
+    bs_provider = BlockscoutProvider(
+        api_key=bs_key,
+        chain_id=1,
+        base_url="https://api.blockscout.com",
+    )
+    es_provider = EtherscanProvider(
+        api_key=es_key,
+        default_chain_id=1,
+        base_url="https://api.etherscan.io/v2/api",
+    )
+
+    bs_res = bs_provider.get_native_balance(VITALIK, "ethereum")
+    assert bs_res.status == ProviderStatus.OK, f"Blockscout get_native_balance failed: {bs_res.error}"
+
+    es_res = es_provider.get_native_balance(VITALIK, "ethereum")
+    assert es_res.status == ProviderStatus.OK, f"Etherscan get_native_balance failed: {es_res.error}"
+
+    assert isinstance(es_res.data, Decimal)
+    assert es_res.data > 0
+    assert bs_res.data == es_res.data, (
+        f"Cross-check balance mismatch: Blockscout={bs_res.data} != Etherscan={es_res.data}"
+    )
+
+    es_health = es_provider.health_check("ethereum")
+    assert es_health.status == ProviderStatus.OK
+    assert isinstance(es_health.data, int)
+    assert es_health.data > 26_000_000
