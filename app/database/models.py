@@ -101,7 +101,18 @@ class Wallet(Base):
     group: Mapped[WalletGroup | None] = relationship("WalletGroup", back_populates="wallets")
     networks: Mapped[list[WalletNetwork]] = relationship("WalletNetwork", back_populates="wallet")
     tag_links: Mapped[list[WalletTagLink]] = relationship("WalletTagLink", back_populates="wallet")
+    tags: Mapped[list[WalletTag]] = relationship(
+        "WalletTag",
+        secondary="wallet_tag_links",
+        viewonly=True,
+    )
     socials: Mapped[list[WalletSocial]] = relationship("WalletSocial", back_populates="wallet")
+    audit_logs: Mapped[list[WalletAuditLog]] = relationship(
+        "WalletAuditLog",
+        back_populates="wallet",
+        cascade="all, delete-orphan",
+        order_by="WalletAuditLog.id",
+    )
     activities: Mapped[list[Activity]] = relationship("Activity", back_populates="wallet")
     transactions: Mapped[list[Transaction]] = relationship("Transaction", back_populates="wallet")
     balance_snapshots: Mapped[list[BalanceSnapshot]] = relationship("BalanceSnapshot", back_populates="wallet")
@@ -244,6 +255,35 @@ class WalletSocial(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     wallet: Mapped[Wallet] = relationship("Wallet", back_populates="socials")
+
+    @property
+    def value(self) -> str | None:
+        """Alias for handle/url for backwards compatibility."""
+        return self.url or self.handle
+
+
+class WalletAuditLog(Base):
+    """Audit trail recording historical metadata modifications to wallets."""
+
+    __tablename__ = "wallet_audit_log"
+    __table_args__ = (
+        Index("ix_wallet_audit_log_wallet_id", "wallet_id"),
+        Index("ix_wallet_audit_log_changed_at", "changed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    wallet_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("wallets.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    field: Mapped[str] = mapped_column(String(64), nullable=False)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    wallet: Mapped[Wallet] = relationship("Wallet", back_populates="audit_logs")
+
 
 
 class WalletRelation(Base):

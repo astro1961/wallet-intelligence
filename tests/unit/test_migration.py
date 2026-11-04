@@ -30,9 +30,19 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     conn = sqlite3.connect(str(db_file))
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     conn.close()
-    assert len(tables) == 23
+    assert len(tables) == 24
     assert "wallets" in tables
+    assert "wallet_audit_log" in tables
     assert "alembic_version" in tables
+
+    # Downgrade 1 revision (to 001)
+    command.downgrade(cfg, "-1")
+    conn = sqlite3.connect(str(db_file))
+    tables_001 = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    conn.close()
+    assert len(tables_001) == 23
+    assert "wallet_audit_log" not in tables_001
+    assert "wallets" in tables_001
 
     # Downgrade to base
     command.downgrade(cfg, "base")
@@ -46,5 +56,6 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     conn = sqlite3.connect(str(db_file))
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     conn.close()
-    assert len(tables) == 23
+    assert len(tables) == 24
     assert "wallets" in tables
+    assert "wallet_audit_log" in tables

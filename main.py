@@ -7,7 +7,8 @@ import sys
 
 from app.application import WalletTrackerApp
 from app.config import load_config
-from app.database.session import init_db
+from app.core.network_manager import ensure_networks_from_config
+from app.database.session import init_db, session_factory, session_scope
 from app.utils.logging import setup_logging
 
 
@@ -43,8 +44,12 @@ def main(argv: list[str] | None = None) -> int:
         cfg.database.path = args.db
 
     # Initialize database
-    init_db(cfg)
+    engine = init_db(cfg)
     logger.info("Database initialized successfully at: %s", cfg.database.path)
+
+    # Seed networks from config
+    with session_scope(session_factory(engine)) as session:
+        ensure_networks_from_config(session, cfg)
 
     # Launch Textual TUI
     app = WalletTrackerApp(config=cfg)

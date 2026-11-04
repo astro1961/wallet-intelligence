@@ -26,6 +26,7 @@ from app.database.models import (
     Token,
     Transaction,
     Wallet,
+    WalletAuditLog,
     WalletGroup,
     WalletNetwork,
     WalletRelation,
@@ -180,4 +181,33 @@ def test_project_contract_and_token_address_normalization():
     assert tok.contract_address == "0xabcdef0000000000000000000000000000000001"
     tok.contract_address = "0xABCDEF0000000000000000000000000000000002"
     assert tok.contract_address == "0xabcdef0000000000000000000000000000000002"
+
+
+def test_wallet_audit_log_and_tags_relationship(db_session: Session):
+    wallet = Wallet(address="0x1111111111111111111111111111111111111111", name="Alpha")
+    tag1 = WalletTag(name="hot")
+    tag2 = WalletTag(name="farming")
+    db_session.add_all([wallet, tag1, tag2])
+    db_session.flush()
+
+    link1 = WalletTagLink(wallet_id=wallet.id, tag_id=tag1.id)
+    link2 = WalletTagLink(wallet_id=wallet.id, tag_id=tag2.id)
+    db_session.add_all([link1, link2])
+
+    log1 = WalletAuditLog(wallet_id=wallet.id, field="name", old_value="Init", new_value="Alpha")
+    db_session.add(log1)
+    db_session.flush()
+
+    assert len(wallet.tags) == 2
+    assert {t.name for t in wallet.tags} == {"hot", "farming"}
+    assert len(wallet.audit_logs) == 1
+    assert wallet.audit_logs[0].field == "name"
+    assert wallet.audit_logs[0].old_value == "Init"
+    assert wallet.audit_logs[0].new_value == "Alpha"
+
+    social = WalletSocial(wallet_id=wallet.id, platform="twitter", handle="alpha", url="https://x.com/alpha")
+    db_session.add(social)
+    db_session.flush()
+    assert social.value == "https://x.com/alpha"
+
 

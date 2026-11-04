@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import AppConfig, load_config
@@ -90,7 +91,6 @@ def init_db(cfg: AppConfig | None = None) -> Engine:
             from alembic import command
             from alembic.config import Config
             from alembic.util.exc import CommandError
-            from sqlalchemy.exc import SQLAlchemyError
 
             alembic_cfg = Config(str(alembic_ini_path))
             alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{cfg.database.path}")
