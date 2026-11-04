@@ -51,7 +51,6 @@ def save_native_balance(
         usd_price=None,
         usd_value=None,
         block_number=block_number,
-        taken_at=now_utc,
         snapshot_at=now_utc,
     )
     session.add(snapshot)

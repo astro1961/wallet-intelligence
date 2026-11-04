@@ -45,14 +45,14 @@ class HotkeyBar(Static):
     def render(self) -> str:
         w = self.size.width
         if w <= 0:
-            w = self.app.size.width if self.app else 120
+            w = self.app.size.width if self.app and self.app.size.width > 0 else 110
         avail = max(0, w - 2)
-        full = "1-9 Sections  │  a Add  │  i Import  │  r Refresh  │  f Filter  │  g Graph  │  / Search  │  Esc Home  │  q Quit"
+        full = "1-9 Sections │ a Add │ i Import │ r Refresh │ f Filter │ g Graph │ / Search │ Esc Back │ q Quit"
         med = "1-9 Sections │ a Add │ i Import │ r Refresh │ f Filter │ g Graph │ / Search │ Esc │ q Quit"
         short = "1-9 Nav │ a Add │ i Imp │ r Ref │ f Flt │ g Grp │ / Find │ Esc │ q Quit"
         tiny = "1-9 | a | i | r | f | g | / | Esc | q"
 
-        if len(full) <= avail and w >= 120:
+        if len(full) <= avail and w >= 100:
             return full
         if len(med) <= avail and w >= 90:
             return med

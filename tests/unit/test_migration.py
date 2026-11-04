@@ -25,15 +25,27 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_file}")
 
-    # Upgrade to head
+    # Upgrade to head (004)
     command.upgrade(cfg, "head")
     conn = sqlite3.connect(str(db_file))
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    cols_004 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
     conn.close()
     assert len(tables) == 24
     assert "wallets" in tables
     assert "wallet_audit_log" in tables
     assert "alembic_version" in tables
+    assert "taken_at" not in cols_004
+    assert "snapshot_at" in cols_004
+    assert "block_number" in cols_004
+
+    # Downgrade 1 revision (to 003)
+    command.downgrade(cfg, "-1")
+    conn = sqlite3.connect(str(db_file))
+    cols_003 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
+    conn.close()
+    assert "taken_at" in cols_003
+    assert "block_number" in cols_003
 
     # Downgrade 1 revision (to 002)
     command.downgrade(cfg, "-1")

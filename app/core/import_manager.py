@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
@@ -17,6 +18,8 @@ from app.utils.validators import (
     is_valid_solana_address,
     normalize_evm_address,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -72,8 +75,8 @@ class ImportManager:
                 parsed = json.loads(cleaned)
                 if isinstance(parsed, (list, dict)):
                     return "json"
-            except (json.JSONDecodeError, ValueError):
-                pass
+            except (json.JSONDecodeError, ValueError) as exc:
+                logger.debug("Format detection: input is not valid JSON (%s)", exc)
 
         lines = [
             line.strip()
@@ -203,8 +206,8 @@ class ImportManager:
             cfg = load_config()
             for net_cfg in cfg.networks:
                 known_networks.add(net_cfg.name.strip().lower())
-        except (AttributeError, ValueError, KeyError):
-            pass
+        except (AttributeError, ValueError, KeyError) as exc:
+            logger.warning("Could not pre-fetch networks from config: %s", exc)
 
         seen_in_batch: set[tuple[str, str]] = set()
 
@@ -212,11 +215,12 @@ class ImportManager:
         duplicate_count = 0
         error_count = 0
 
-        for row in rows:
+        for idx, row in enumerate(rows, start=1):
             addr_str = row.address.strip()
             if not addr_str:
                 row.status = "error"
                 row.error = "Address is empty"
+                logger.warning("Row %d skipped: %s", idx, row.error)
                 error_count += 1
                 continue
 
@@ -226,6 +230,7 @@ class ImportManager:
                 if net_key not in known_networks:
                     row.status = "error"
                     row.error = f"Unknown network: '{row.network}'"
+                    logger.warning("Row %d skipped: %s", idx, row.error)
                     error_count += 1
                     continue
 
@@ -239,6 +244,7 @@ class ImportManager:
             else:
                 row.status = "error"
                 row.error = f"Invalid EVM or Solana address: '{row.address}'"
+                logger.warning("Row %d skipped: %s", idx, row.error)
                 error_count += 1
                 continue
 
@@ -246,6 +252,7 @@ class ImportManager:
 
             if dedupe_key in seen_in_batch:
                 row.status = "duplicate"
+                logger.warning("Row %d skipped: duplicate address '%s'", idx, addr_str)
                 duplicate_count += 1
             else:
                 row.status = "new"
@@ -287,8 +294,8 @@ class ImportManager:
                 network = self.session.execute(
                     select(Network).where(Network.name.ilike(network_name.strip()))
                 ).scalar_one_or_none()
-            except (AttributeError, ValueError, KeyError):
-                pass
+            except (AttributeError, ValueError, KeyError) as exc:
+                logger.warning("Could not ensure network '%s' from config: %s", network_name, exc)
 
         if network is None:
             return
@@ -324,11 +331,12 @@ class ImportManager:
         wm = WalletManager(self.session)
         created_in_apply: set[tuple[str, str]] = set()
 
-        for row in preview.rows:
+        for idx, row in enumerate(preview.rows, start=1):
             if row.status == "error":
                 errors.append(row)
                 skipped += 1
                 applied_rows.append(row)
+                logger.warning("Row %d skipped: %s", idx, row.error)
                 continue
 
             addr_str = row.address.strip()
@@ -346,6 +354,7 @@ class ImportManager:
                 errors.append(row)
                 skipped += 1
                 applied_rows.append(row)
+                logger.warning("Row %d skipped: %s", idx, row.error)
                 continue
 
             dedupe_key = (db_addr, chain_type)
@@ -380,11 +389,13 @@ class ImportManager:
                 else:
                     row.status = "skipped"
                     skipped += 1
+                    logger.warning("Row %d skipped: wallet '%s' already exists (mode=add_only)", idx, addr_str)
                 applied_rows.append(row)
             else:
                 if dedupe_key in created_in_apply or row.status == "duplicate":
                     row.status = "skipped"
                     skipped += 1
+                    logger.warning("Row %d skipped: duplicate wallet '%s'", idx, addr_str)
                     applied_rows.append(row)
                 else:
                     group_id = None

@@ -69,20 +69,20 @@ def create_provider_registry(cfg: AppConfig | None = None) -> ProviderRegistry:
             )
 
     # 3. EVM JSON-RPC Provider
-    # Look for first EVM network with an RPC URL configured
-    rpc_url: str | None = None
+    rpc_urls: dict[str, str] = {}
     for net in cfg.networks:
         if net.enabled and net.rpc_url and (getattr(net, "type", "evm") or "evm") == "evm":
-            rpc_url = str(net.rpc_url)
-            break
+            rpc_urls[net.name.strip().lower()] = str(net.rpc_url)
 
-    if not rpc_url:
+    first_rpc_url: str | None = next(iter(rpc_urls.values()), None)
+    if not first_rpc_url:
         rpc_cfg = cfg.providers.get("evm_rpc")
         if rpc_cfg and rpc_cfg.enabled and rpc_cfg.base_url:
-            rpc_url = rpc_cfg.base_url
+            first_rpc_url = rpc_cfg.base_url
+            rpc_urls["ethereum"] = first_rpc_url
 
-    if rpc_url:
-        providers.append(EvmRpcProvider(rpc_url=rpc_url))
+    if rpc_urls or first_rpc_url:
+        providers.append(EvmRpcProvider(rpc_url=first_rpc_url, rpc_urls=rpc_urls))
 
     # 3. DeFiLlama Provider
     dl_cfg = cfg.providers.get("defillama")

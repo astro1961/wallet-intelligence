@@ -163,8 +163,8 @@ Screen.narrow #wallets-container {
 }
 
 #group-tree {
-    width: 30;
-    min-width: 22;
+    width: 22;
+    min-width: 16;
     height: 100%;
     border: solid $panel;
     margin-right: 1;
@@ -201,6 +201,7 @@ Screen.narrow #group-tree {
     margin-top: 1;
     padding: 0 1;
     overflow-y: auto;
+    text-wrap: wrap;
 }
 
 #empty-state {

@@ -1,6 +1,7 @@
 """Configuration models and loader for Wallet Intelligence Tracker."""
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,8 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigBaseModel(BaseModel):
@@ -89,9 +92,14 @@ def load_config(path: str | Path | None = None) -> AppConfig:
     if "WIT_REFRESH_INTERVAL" in os.environ:
         if "app" not in raw_data or not isinstance(raw_data["app"], dict):
             raw_data["app"] = {}
+        val_str = os.environ["WIT_REFRESH_INTERVAL"]
         try:
-            raw_data["app"]["refresh_interval_seconds"] = int(os.environ["WIT_REFRESH_INTERVAL"])
-        except ValueError:
-            pass
+            raw_data["app"]["refresh_interval_seconds"] = int(val_str)
+        except ValueError as exc:
+            logger.warning(
+                "Invalid WIT_REFRESH_INTERVAL '%s': %s. Keeping default.",
+                val_str,
+                exc,
+            )
 
     return AppConfig(**raw_data)

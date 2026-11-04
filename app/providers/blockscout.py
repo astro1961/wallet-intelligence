@@ -96,8 +96,8 @@ class BlockscoutProvider(DataProvider):
                 return CHAIN_ID_MAP[key]
             try:
                 return int(key)
-            except ValueError:
-                pass
+            except ValueError as exc:
+                logger.debug("Failed to parse network string '%s' as integer chain_id: %s", key, exc)
         return self.chain_id
 
     def _sanitize(self, message: str) -> str:

@@ -26,14 +26,28 @@ class EvmRpcProvider(DataProvider):
     def __init__(
         self,
         client: httpx.Client | None = None,
-        rpc_url: str = "https://eth.llamarpc.com",
+        rpc_url: str | None = None,
+        rpc_urls: dict[str, str] | None = None,
         max_retries: int = 2,
         backoff_base: float = 0.5,
     ) -> None:
         super().__init__(client=client, api_key=None)
-        self.rpc_url = rpc_url
         self.max_retries = max(0, max_retries)
         self.backoff_base = max(0.0, backoff_base)
+
+        if rpc_urls is not None:
+            self.rpc_urls: dict[str, str] = {
+                k.strip().lower(): str(v) for k, v in rpc_urls.items()
+            }
+        else:
+            self.rpc_urls = {}
+
+        if rpc_url:
+            self.rpc_url = rpc_url
+        elif self.rpc_urls:
+            self.rpc_url = next(iter(self.rpc_urls.values()))
+        else:
+            self.rpc_url = "https://eth.llamarpc.com"
 
         if self.client is None:
             self._managed_client = True
@@ -41,7 +55,34 @@ class EvmRpcProvider(DataProvider):
         else:
             self._managed_client = False
 
-    def _call_rpc(self, method: str, params: list[Any]) -> ProviderResult:
+    def _resolve_url(self, network: str | None) -> str | None:
+        if not network:
+            return None
+        key = network.strip().lower()
+        if key in self.rpc_urls:
+            return self.rpc_urls[key]
+
+        aliases = {
+            "eth": "ethereum",
+            "mainnet": "ethereum",
+            "arb": "arbitrum",
+            "op": "optimism",
+            "bsc": "bnb chain",
+            "bnb": "bnb chain",
+            "polygon": "polygon",
+            "matic": "polygon",
+        }
+        canonical = aliases.get(key)
+        if canonical and canonical in self.rpc_urls:
+            return self.rpc_urls[canonical]
+
+        if not self.rpc_urls and self.rpc_url and key in ("ethereum", "mainnet", "eth"):
+            return self.rpc_url
+        return None
+
+    def _call_rpc(
+        self, method: str, params: list[Any], endpoint: str | None = None
+    ) -> ProviderResult:
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -49,17 +90,22 @@ class EvmRpcProvider(DataProvider):
             "params": params,
         }
 
+        url = endpoint or self.rpc_url
+        if not url:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                error="No RPC endpoint URL available",
+                source=self.name,
+                data=None,
+            )
+
         last_status_code: int | None = None
         last_error_text: str | None = None
 
         for attempt in range(self.max_retries + 1):
             try:
                 assert self.client is not None
-                # If client has a base_url, we post to "" or rpc_url
-                if self.client.base_url and str(self.client.base_url) != "http://":
-                    resp = self.client.post("", json=payload)
-                else:
-                    resp = self.client.post(self.rpc_url, json=payload)
+                resp = self.client.post(url, json=payload)
 
                 last_status_code = resp.status_code
 
@@ -153,7 +199,15 @@ class EvmRpcProvider(DataProvider):
         )
 
     def get_native_balance(self, address: str, network: str) -> ProviderResult:
-        res = self._call_rpc("eth_getBalance", [address, "latest"])
+        url = self._resolve_url(network)
+        if not url:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                error=f"Unsupported or unconfigured network: '{network}'",
+                source=self.name,
+                data=None,
+            )
+        res = self._call_rpc("eth_getBalance", [address, "latest"], endpoint=url)
         if res.status != ProviderStatus.OK:
             return res
 
@@ -169,7 +223,15 @@ class EvmRpcProvider(DataProvider):
             )
 
     def get_latest_block(self, network: str) -> ProviderResult:
-        res = self._call_rpc("eth_blockNumber", [])
+        url = self._resolve_url(network)
+        if not url:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                error=f"Unsupported or unconfigured network: '{network}'",
+                source=self.name,
+                data=None,
+            )
+        res = self._call_rpc("eth_blockNumber", [], endpoint=url)
         if res.status != ProviderStatus.OK:
             return res
 
@@ -185,11 +247,29 @@ class EvmRpcProvider(DataProvider):
             )
 
     def get_transaction_details(self, tx_hash: str, network: str) -> ProviderResult:
-        return self._call_rpc("eth_getTransactionByHash", [tx_hash])
+        url = self._resolve_url(network)
+        if not url:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                error=f"Unsupported or unconfigured network: '{network}'",
+                source=self.name,
+                data=None,
+            )
+        return self._call_rpc("eth_getTransactionByHash", [tx_hash], endpoint=url)
 
     def get_token_metadata(self, contract: str, network: str) -> ProviderResult:
+        url = self._resolve_url(network)
+        if not url:
+            return ProviderResult(
+                status=ProviderStatus.ERROR,
+                error=f"Unsupported or unconfigured network: '{network}'",
+                source=self.name,
+                data=None,
+            )
         # eth_call for decimals() selector: 0x313ce567
-        res_dec = self._call_rpc("eth_call", [{"to": contract, "data": "0x313ce567"}, "latest"])
+        res_dec = self._call_rpc(
+            "eth_call", [{"to": contract, "data": "0x313ce567"}, "latest"], endpoint=url
+        )
         if res_dec.status != ProviderStatus.OK:
             return ProviderResult(
                 status=ProviderStatus.UNSUPPORTED,
@@ -198,14 +278,16 @@ class EvmRpcProvider(DataProvider):
             )
 
         # eth_call for symbol() selector: 0x95d89b41
-        res_sym = self._call_rpc("eth_call", [{"to": contract, "data": "0x95d89b41"}, "latest"])
+        res_sym = self._call_rpc(
+            "eth_call", [{"to": contract, "data": "0x95d89b41"}, "latest"], endpoint=url
+        )
 
         decimals: int | None = None
         if isinstance(res_dec.data, str):
             try:
                 decimals = int(res_dec.data, 16)
-            except ValueError:
-                pass
+            except ValueError as exc:
+                logger.warning("Failed to parse token decimals '%s': %s", res_dec.data, exc)
 
         return ProviderResult(
             status=ProviderStatus.OK,

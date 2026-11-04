@@ -562,7 +562,6 @@ class BalanceSnapshot(Base):
     usd_price: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
     usd_value: Mapped[Decimal | None] = mapped_column(Numeric(38, 18), nullable=True)
     block_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     snapshot_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 

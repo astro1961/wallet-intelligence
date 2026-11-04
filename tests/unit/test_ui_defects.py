@@ -57,3 +57,52 @@ async def test_layout_usable_at_60x20() -> None:
         bottom_bar = app.screen.query_one("#bottom-bar")
         rendered = str(bottom_bar.render())
         assert len(rendered) <= 60
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cols", [120, 140])
+async def test_wallets_table_columns_do_not_collapse(cols: int) -> None:
+    """Stage 3C polish: Wallets table right-most column must not collapse to 1 character."""
+    from tests.unit.test_ui_wallets import seed_test_wallets
+
+    app = WalletTrackerApp()
+    async with app.run_test(size=(cols, 35)) as pilot:
+        seed_test_wallets(app)
+        await pilot.press("2")
+        await pilot.pause()
+        screen = app.screen
+        screen.refresh_data()
+        await pilot.pause()
+
+        svg = app.export_screenshot()
+        # Header must contain full Updated label, not cut off
+        assert "Updated" in svg
+        # Row timestamps must not be collapsed to a single character
+        assert "2026-11-04" in svg
+
+
+@pytest.mark.asyncio
+async def test_wallet_details_panel_word_wrapping() -> None:
+    """Stage 3C polish: Long descriptions in details panel must wrap words."""
+    from app.core.wallet_manager import WalletManager
+
+    app = WalletTrackerApp()
+    async with app.run_test(size=(120, 35)) as pilot:
+        with app.state.session_factory() as session:
+            wm = WalletManager(session)
+            w = wm.create_wallet(
+                address="0x8888888888888888888888888888888888888888",
+                name="TestWrap",
+                notes="Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu",
+            )
+            session.commit()
+            wid = w.id
+
+        await pilot.press("2")
+        await pilot.pause()
+        screen = app.screen
+        screen.show_history(wid)
+        await pilot.pause()
+
+        details = screen.query_one("#wallet-details", Static)
+        assert details.styles.text_wrap == "wrap"

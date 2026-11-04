@@ -109,3 +109,36 @@ def test_evm_rpc_network_error_returns_error_result():
 
     assert res.status == ProviderStatus.ERROR
     assert res.error is not None
+
+
+def test_evm_rpc_per_network_routing():
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(str(req.url))
+        val = 111 if "eth.llamarpc" in str(req.url) else 222
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": hex(val)})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    p = EvmRpcProvider(
+        client=client,
+        rpc_url="https://eth.llamarpc.com",
+        rpc_urls={
+            "ethereum": "https://eth.llamarpc.com",
+            "arbitrum": "https://arb1.arbitrum.io/rpc",
+        },
+    )
+
+    eth = p.get_native_balance("0x1111111111111111111111111111111111111111", "ethereum")
+    arb = p.get_native_balance("0x1111111111111111111111111111111111111111", "arbitrum")
+    unknown = p.get_native_balance("0x1111111111111111111111111111111111111111", "solana")
+
+    assert eth.data == Decimal(111)
+    assert arb.data == Decimal(222)
+    assert len(calls) == 2
+    assert "eth.llamarpc.com" in calls[0]
+    assert "arb1.arbitrum.io" in calls[1]
+
+    assert unknown.status in {ProviderStatus.ERROR, ProviderStatus.UNSUPPORTED}
+    assert unknown.data is None
+    assert len(calls) == 2  # no HTTP call made for unknown network

@@ -10,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.events import Resize
 from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import DataTable, Input, Label, Static, Tree
@@ -101,11 +102,42 @@ class WalletsScreen(BaseAppScreen):
 
     def on_mount(self) -> None:
         super().on_mount()
+        self._ensure_table_columns()
+        self.refresh_data()
+
+    def on_resize(self, event: Resize) -> None:
+        super().on_resize(event)
+        self._adjust_column_widths()
+
+    def _ensure_table_columns(self) -> None:
         with suppress(NoMatches):
             table = self.query_one("#wallet-table", DataTable)
             if not table.columns:
-                table.add_columns("Name", "Address", "Group", "Tags", "Networks", "Updated")
-        self.refresh_data()
+                table.add_column("Name", width=8, key="name")
+                table.add_column("Address", width=18, key="address")
+                table.add_column("Group", width=8, key="group")
+                table.add_column("Tags", width=6, key="tags")
+                table.add_column("Networks", width=8, key="networks")
+                table.add_column("Updated", width=16, key="updated")
+            self._adjust_column_widths()
+
+    def _adjust_column_widths(self) -> None:
+        with suppress(NoMatches, KeyError):
+            table = self.query_one("#wallet-table", DataTable)
+            if not table.columns:
+                return
+            w = table.size.width
+            if w <= 0:
+                screen_w = self.size.width or (self.app.size.width if self.app else 140)
+                w = max(60, screen_w - 44)
+
+            overhead = 60
+            addr_w = max(14, min(42, w - overhead))
+            addr_key = table._column_locations.get_key(1)
+            if addr_key in table.columns:
+                table.columns[addr_key].width = addr_w
+                table._require_update_dimensions = True
+                table.refresh()
 
     def refresh_data(self) -> None:
         """Re-read groups and wallets from the database and refresh tree and table."""
@@ -144,8 +176,7 @@ class WalletsScreen(BaseAppScreen):
     def _refresh_wallet_table(self) -> None:
         with suppress(NoMatches):
             table = self.query_one("#wallet-table", DataTable)
-            if not table.columns:
-                table.add_columns("Name", "Address", "Group", "Tags", "Networks", "Updated")
+            self._ensure_table_columns()
             table.clear()
             self._wallet_row_ids.clear()
 

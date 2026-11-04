@@ -42,9 +42,9 @@ def test_save_native_balance_preserves_decimal_and_block_number(session: Session
     assert isinstance(snap.balance, Decimal)
     assert snap.raw_balance == "5780441042197210512"
     assert snap.block_number == 26343086
-    assert snap.taken_at is not None
-    assert snap.taken_at.tzinfo is not None
-    assert snap.taken_at.tzinfo == UTC
+    assert snap.snapshot_at is not None
+    assert snap.snapshot_at.tzinfo is not None
+    assert snap.snapshot_at.tzinfo == UTC
     assert snap.wallet_id == w.id
     assert snap.network_id == net.id
 
