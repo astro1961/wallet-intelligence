@@ -287,7 +287,8 @@ with session_scope(factory) as s:
     print("BALANCE:%s" % snap.balance)
     print("IS_DECIMAL:%s" % isinstance(snap.balance, Decimal))
     print("BLOCK:%s" % snap.block_number)
-    print("UTC:%s" % (snap.taken_at.tzinfo is not None))
+    print("TAKEN_AT_ABSENT:%s" % (not hasattr(snap, "taken_at")))
+    print("UTC:%s" % (snap.snapshot_at.tzinfo is not None))
 """
     o = out(run(code, tmp_path))
     assert get(o, "SNAP:").lower() == "true", o
@@ -295,11 +296,16 @@ with session_scope(factory) as s:
     assert get(o, "IS_DECIMAL:").lower() == "true"
     assert get(o, "BLOCK:") == "26343086"
     assert get(o, "UTC:").lower() == "true"
+    assert get(o, "TAKEN_AT_ABSENT:").lower() == "true", (
+        "BalanceSnapshot must have exactly one snapshot timestamp (snapshot_at per spec); "
+        "taken_at is a duplicate introduced to satisfy an earlier gate"
+    )
 
 
 FROZEN_REVISIONS = {
     "001_initial_schema.py": "d200e1c2e1b489404465f03a2f0a902d48c550a0f9a10e4c3daf67b9884c85db",
     "002_wallet_audit_log.py": "f5786ff12400a5d7cc8fb906e92489e20e9cbf1ebd0a4c579b128221ed804cd7",
+    "003_balance_snapshot_block_time.py": "945d9f218712f491d3057c1a805d624e59f6216e45e819889a69883640afe9b8",
 }
 
 
