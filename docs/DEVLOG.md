@@ -254,6 +254,45 @@ mv migrations/versions/001_initial_schema.py /tmp/001_backup.py && rm -f /tmp/sc
 реальная Alembic-ревизия с рабочим downgrade, репозитории с белым списком полей,
 логирование с маскированием, 30 тестов. Этап принят.
 
+---
+
+## 2026-11-04 20:05 — Этап 1B принят (TUI-оболочка)
+
+**Прогон:** 1943 с (32 мин), 1 ход, `status=SUCCESS`, `denied_actions` нет.
+
+**Проверено лично:**
+
+| Проверка | Результат |
+|---|---|
+| хеши гейтов | `90fabc93…` / `cfb29608…` — без изменений |
+| тесты проекта | `43 passed in 96.48s` |
+| гейт 1A | `16 passed` |
+| гейт 1B | `9 passed in 85.70s` |
+| ruff | `All checks passed!` |
+| PTY-смоук (`script -qec python main.py`) | процесс живёт до таймаута, traceback нет (exit 124) |
+| реальный рендер | `App.export_screenshot()` → SVG 56 КБ → PNG, просмотрено глазами (vision) |
+
+**Что видно на реальном экране (dashboard 110×30):** верхняя строка «Wallet Intelligence
+Tracker» + `Sync: ● Idle | Last update: Never`; сайдбар `SECTIONS` с 9 разделами и
+подсветкой активного; заголовок `🏛 Dashboard`, описание и **реальные счётчики из БД**
+(Wallets 0, Groups 0, Projects 0, Activities 0, Networks Enabled 7); нижняя строка хоткеев.
+Экран Wallets: заголовок, описание, заглушка «Wallet Group Hierarchy — Coming in Stage 2»,
+активный пункт меню.
+
+**Мелкие дефекты (не блокеры, перенесены в Этап 2):**
+1. нижняя строка хоткеев обрезается на 110 колонках (`q Qu…`) — нужен компактный вариант
+   при узком окне;
+2. длинные описания в экранах не переносятся, а режутся справа (`…balance insp`);
+3. на экране Wallets нет человеческого empty state («кошельков пока нет + A добавить») —
+   вместо него заглушка про этап 2; уйдёт вместе с реализацией CRUD.
+
+**Артефакты:** `runs/shots/stage1b_dashboard.png`, `runs/shots/stage1b_wallets.png`.
+
+**Итог 1B:** `app/application.py` (212 строк), `app/state.py`, 9 экранов, 4 виджета,
+`app.tcss`, 5 UI-тестов; `main.py` запускает TUI. Всего в проекте 26 python-файлов,
+616 строк UI-слоя. Этап принят.
+
+
 
 
 
