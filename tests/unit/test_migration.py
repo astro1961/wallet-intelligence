@@ -35,7 +35,15 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     assert "wallet_audit_log" in tables
     assert "alembic_version" in tables
 
-    # Downgrade 1 revision (to 001)
+    # Downgrade 1 revision (to 002)
+    command.downgrade(cfg, "-1")
+    conn = sqlite3.connect(str(db_file))
+    cols_002 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
+    conn.close()
+    assert "block_number" not in cols_002
+    assert "taken_at" not in cols_002
+
+    # Downgrade to 001
     command.downgrade(cfg, "-1")
     conn = sqlite3.connect(str(db_file))
     tables_001 = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
