@@ -5,23 +5,31 @@ from pathlib import Path
 
 import pytest
 
-from main import main
+from main import main as main_func
 
 
-def test_main_runs_and_exits_cleanly(tmp_path: Path, capsys: pytest.CaptureFixture):
+def test_main_launches_app_and_returns_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Requirement 8: main.py main() starts the app (monkeypatched run) and returns 0."""
     db_file = tmp_path / "main_test.db"
-    # Running with --db flag should initialize DB and exit 0 cleanly with stage notice
-    with pytest.raises(SystemExit) as exc:
-        main(["--db", str(db_file), "--log-level", "DEBUG"])
-    assert exc.value.code == 0
-    captured = capsys.readouterr()
-    assert "Stage 1A initialized successfully" in captured.out
+    run_called = []
+
+    from app.application import WalletTrackerApp
+
+    def fake_run(self, *args, **kwargs):
+        run_called.append(True)
+        return 0
+
+    monkeypatch.setattr(WalletTrackerApp, "run", fake_run)
+
+    rc = main_func(["--db", str(db_file), "--log-level", "DEBUG"])
+    assert rc == 0
+    assert len(run_called) == 1
     assert db_file.exists()
 
 
-def test_main_version(capsys: pytest.CaptureFixture):
+def test_main_version(capsys: pytest.CaptureFixture) -> None:
     with pytest.raises(SystemExit) as exc:
-        main(["--version"])
+        main_func(["--version"])
     assert exc.value.code == 0
     captured = capsys.readouterr()
     assert "0.1.0" in captured.out

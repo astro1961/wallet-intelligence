@@ -5,12 +5,13 @@ import argparse
 import os
 import sys
 
+from app.application import WalletTrackerApp
 from app.config import load_config
 from app.database.session import init_db
 from app.utils.logging import setup_logging
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     """Parse CLI options, configure logging, initialize database, and launch app."""
     parser = argparse.ArgumentParser(
         prog="wallet-intelligence",
@@ -45,18 +46,11 @@ def main(argv: list[str] | None = None) -> None:
     init_db(cfg)
     logger.info("Database initialized successfully at: %s", cfg.database.path)
 
-    # Lazy-load Textual UI (Stage 1B)
-    try:
-        from app.application import WalletIntelligenceApp  # type: ignore
-
-        app = WalletIntelligenceApp(config=cfg)
-        app.run()
-    except (ImportError, ModuleNotFoundError):
-        print("Wallet Intelligence Tracker - Stage 1A initialized successfully.")
-        print(f"Database ready at: {cfg.database.path}")
-        print("TUI interface (Stage 1B) is not yet implemented. Exiting.")
-        sys.exit(0)
+    # Launch Textual TUI
+    app = WalletTrackerApp(config=cfg)
+    result = app.run()
+    return int(result or 0)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
