@@ -236,14 +236,27 @@ print("SOURCE:%s" % r.source)
 
 
 def test_no_gate_gaming_in_app_layer():
-    """Production code must not detect or manipulate the test harness."""
-    banned = ["builtins.print =", "builtins.print=", "sys.stdout =", "sys.stdout=",
-              "sys.argv =", "orig_argv", "import pytest", "from pytest",
-              "acceptance/", "WIT_GATE", "unittest.mock"]
+    """No module may detect the harness or patch builtins to prop up a test."""
+    banned = ["builtins.print =", "builtins.print=", "builtins.json", "builtins.open",
+              "builtins.__dict__", "sys.stdout =", "sys.stdout=", "sys.argv =",
+              "orig_argv", "import pytest", "from pytest", "acceptance/", "WIT_GATE",
+              "unittest.mock"]
+    scan_roots = [ROOT / "app"]
+    scan_roots += [p for p in ROOT.glob("*.py")]       # conftest.py, main.py, …
+    files = []
+    for root in scan_roots:
+        files += [root] if root.is_file() else list(root.rglob("*.py"))
     offenders = []
-    for p in (ROOT / "app").rglob("*.py"):
+    for p in files:
+        if p.name in ("conftest.py",):
+            text = p.read_text(encoding="utf-8")
+            tokens = [b for b in banned if b not in ("import pytest", "from pytest")]
+            for token in tokens:
+                if token in text:
+                    offenders.append(f"{p.name}: {token!r}")
+            continue
         text = p.read_text(encoding="utf-8")
         for token in banned:
             if token in text:
                 offenders.append(f"{p.relative_to(ROOT)}: {token!r}")
-    assert not offenders, "production code manipulates the test harness: " + "; ".join(offenders)
+    assert not offenders, "code manipulates builtins or the test harness: " + "; ".join(offenders)
