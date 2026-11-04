@@ -91,3 +91,24 @@ cbd225716e690bc7f6e67898825b73b290bca09a461468fc888253cd0689d82b  tasks/stage1a.
 Запуск: `agy --mode accept-edits --print-timeout 25m --output-format json -p "<указатель
 на tasks/stage1a.md>"` в `~/Projects/wallet-intelligence`, в фоне.
 Ожидаемо: pyproject + config + 22 модели + session/repository + alembic + logging + тесты.
+
+**Первый прогон провалился (42 с, 52k токенов, 0 файлов):**
+```
+jetski: no output produced — a tool required the "command" permission that headless
+mode cannot prompt for, so it was auto-denied. Add an allow-rule under permissions.allow
+in settings.json (e.g. command(<target>)). Alternatively, re-run with
+--dangerously-skip-permissions to auto-approve all tools.
+{"status":"SUCCESS", "response":"", "denied_actions":[{"action":"command","display_name":"RunCommand"}]}
+```
+Вывод: headless-режим AGY не умеет спрашивать разрешения. `status=SUCCESS` при пустом
+ответе — ровно тот случай, когда конверт врёт: работа не сделана, а статус зелёный.
+Поэтому правило «судить по артефакту» здесь сработало сразу: файлов на диске не было.
+
+**Решение (спорный момент №10): права выданы на одну сессию, без правки конфига.**
+Вместо `--dangerously-skip-permissions` (полный автопруф всех инструментов) и вместо
+правки `~/.gemini/antigravity-cli/settings.json` использован флаг `--settings` —
+сессионный JSON с точечным allow-списком: `uv`, `.venv/bin/python|pytest|ruff|alembic`,
+`python`, `pytest`, `alembic`, git-чтение/коммит, базовые ФС-команды (`mkdir/cp/mv/ls/cat/wc/find/touch/chmod`).
+`rm` и sudo намеренно не выданы. Проверено пробой: `--settings '{"permissions":{"allow":["command(echo)"]}}'`
+→ агент реально выполнил `echo PERMS_OK` (14 с). Конфиг пользователя не изменён.
+

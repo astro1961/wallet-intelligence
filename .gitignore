@@ -1,0 +1,24 @@
+# Environments and secrets
+.env
+.venv/
+.python-version
+
+# Data and logs
+data/
+logs/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# Delegated agent run artifacts
+runs/

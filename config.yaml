@@ -1,0 +1,70 @@
+app:
+  name: "Wallet Intelligence Tracker"
+  refresh_interval_seconds: 300
+  timezone: "UTC"
+
+database:
+  path: "data/wallet_tracker.db"
+
+providers:
+  etherscan:
+    enabled: true
+    api_key_env: "ETHERSCAN_API_KEY"
+    base_url: "https://api.etherscan.io/api"
+  blockscout:
+    enabled: true
+    api_key_env: "BLOCKSCOUT_API_KEY"
+    base_url: "https://eth.blockscout.com/api"
+  defillama:
+    enabled: true
+    base_url: "https://api.llama.fi"
+
+networks:
+  - name: "Ethereum"
+    type: "evm"
+    chain_id: 1
+    enabled: true
+    rpc_url: "https://eth.llamarpc.com"
+    explorer_url: "https://etherscan.io"
+
+  - name: "Arbitrum"
+    type: "evm"
+    chain_id: 42161
+    enabled: true
+    rpc_url: "https://arb1.arbitrum.io/rpc"
+    explorer_url: "https://arbiscan.io"
+
+  - name: "Optimism"
+    type: "evm"
+    chain_id: 10
+    enabled: true
+    rpc_url: "https://mainnet.optimism.io"
+    explorer_url: "https://optimistic.etherscan.io"
+
+  - name: "Base"
+    type: "evm"
+    chain_id: 8453
+    enabled: true
+    rpc_url: "https://mainnet.base.org"
+    explorer_url: "https://basescan.org"
+
+  - name: "BNB Chain"
+    type: "evm"
+    chain_id: 56
+    enabled: true
+    rpc_url: "https://bsc-dataseed.binance.org"
+    explorer_url: "https://bscscan.com"
+
+  - name: "Polygon"
+    type: "evm"
+    chain_id: 137
+    enabled: true
+    rpc_url: "https://polygon-rpc.com"
+    explorer_url: "https://polygonscan.com"
+
+  - name: "Sepolia"
+    type: "evm"
+    chain_id: 11155111
+    enabled: true
+    rpc_url: "https://rpc.sepolia.org"
+    explorer_url: "https://sepolia.etherscan.io"
