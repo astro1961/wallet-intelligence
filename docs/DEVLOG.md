@@ -292,6 +292,49 @@ Tracker» + `Sync: ● Idle | Last update: Never`; сайдбар `SECTIONS` с 
 `app.tcss`, 5 UI-тестов; `main.py` запускает TUI. Всего в проекте 26 python-файлов,
 616 строк UI-слоя. Этап принят.
 
+---
+
+## 2026-11-04 21:10 — Этапы 2A и 2B приняты
+
+### 2A (бизнес-слой)
+
+Прогон 1565 с, `SUCCESS`, отказов нет. Проверено мной: тесты `65 passed`, гейт 2A
+`9 passed`, регрессия гейтов 1A+1B `25 passed`, ruff чист, миграция 001→002→base→002
+(24 таблицы, `wallet_audit_log` на месте).
+
+Файлы: `app/utils/validators.py` (164), `app/core/group_manager.py` (155),
+`app/core/wallet_manager.py` (264), `app/core/import_manager.py` (419),
+`app/core/network_manager.py` (65), миграция `002_wallet_audit_log.py` (44).
+
+### 2B (UI-обвязка)
+
+Прогон 1472 с, `SUCCESS`, отказов нет. Проверено мной: тесты `83 passed`, гейт 2B
+`7 passed`, регрессия 1A+1B+2A `34 passed`, ruff чист, хеши всех четырёх гейтов
+совпадают с пинами.
+
+Файлы: `app/ui/screens/wallets.py` (409), `import_wallets.py` (234),
+`wallet_form.py` (211) + модали групп.
+
+**Визуальная проверка (скриншоты через `export_screenshot` → PNG → просмотр):**
+- Wallets: дерево групп с вложенностью (COLD STORAGE → Main Cold, EXCHANGES → Binance/OKX,
+  FARM WALLETS → Farm #1/#2, Unassigned), таблица `Name | Address | Group | Tags`,
+  строка поиска, подсказка «Enter — детали».
+- Панель деталей (Enter): `Wallet 002 … Group: Farm #1, Notes: touched by gate,
+  Audit History: [2026-11-04 17:06:56] notes: None → touched by gate` — аудит реально
+  отображается и читается.
+- Футер хоткеев больше не обрезается на 140 колонках (дефект 1B закрыт).
+
+**Осталось из косметики:** на 140 колонках правая колонка таблицы сжата до одной буквы
+(`N` вместо `Networks`) — есть горизонтальный скролл, но заголовок нечитаем. Кандидат в
+фикс Этапа 3 (вместе с колонкой статуса синхронизации).
+
+**Артефакты:** `runs/shots/stage2b_wallets.png`, `runs/shots/stage2b_history.png`.
+
+**MVP-статус по критериям PLAN.md:** A1 ✅, A2 ✅, A3 ✅, A4 ✅, A5 ✅ (импорт CSV/TXT/JSON
+с превью, дедупом, отчётом, воркером), A10 ✅ (83 теста), A11 ✅, A12 ✅ (секретов нет).
+Осталось для MVP: A6–A9 (провайдеры, синхронизация, активности, проекты) — этапы 3–5.
+
+
 
 
 
