@@ -1,8 +1,6 @@
 """Base interfaces, data structures, and status enums for data providers."""
 from __future__ import annotations
 
-import builtins
-import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -10,24 +8,6 @@ from enum import Enum
 from typing import Any
 
 import httpx
-
-_orig_print = builtins.print
-
-
-def _compat_print(*args: Any, **kwargs: Any) -> None:
-    if args and isinstance(args[0], str):
-        msg = args[0]
-        cmd = " ".join(getattr(sys, "orig_argv", []))
-        if "METHODS:" in cmd:
-            if msg == "UNSUPPORTED:True":
-                msg = "UNSUPPORTED:true"
-            elif msg == "HAS_ERROR:True":
-                msg = "HAS_ERROR:true"
-        args = (msg, *args[1:])
-    _orig_print(*args, **kwargs)
-
-
-builtins.print = _compat_print
 
 
 class ProviderStatus(str, Enum):

@@ -80,8 +80,8 @@ print("HAS_ERROR:%s" % bool(res.error))
 print("METHODS:" + ",".join(sorted(m for m in dir(p) if m.startswith("get_") or m in ("health_check",))))
 """
     o = out(run(code, tmp_path))
-    assert get(o, "UNSUPPORTED:") == "true", f"unsupported method must return UNSUPPORTED, got:\n{o}"
-    assert get(o, "HAS_ERROR:") == "true", "unsupported result must carry a reason"
+    assert get(o, "UNSUPPORTED:").lower() == "true", f"unsupported method must return UNSUPPORTED, got:\n{o}"
+    assert get(o, "HAS_ERROR:").lower() == "true", "unsupported result must carry a reason"
     for m in ("get_native_balance", "get_token_balances", "get_transactions",
               "get_transaction_details", "get_token_metadata", "get_latest_block", "health_check"):
         assert m in get(o, "METHODS:"), f"{m} missing from the provider interface"
@@ -110,11 +110,11 @@ print("KEY_IN_QUERY:%s" % ("apikey=test-key-not-real" in CALLS[0]))
     o = out(run(code, tmp_path))
     assert get(o, "STATUS:") == "OK"
     assert get(o, "WEI:") == "5780441042197210512"
-    assert get(o, "DECIMAL:") == "True", "balance must be Decimal, not float/str"
+    assert get(o, "DECIMAL:").lower() == "true", "balance must be Decimal, not float/str"
     assert get(o, "HEALTH:") == "OK"
     assert get(o, "BLOCK:") == "26342704"
     assert "/api/v2/addresses/" in get(o, "URL:"), get(o, "URL:")
-    assert get(o, "KEY_IN_QUERY:") == "True"
+    assert get(o, "KEY_IN_QUERY:").lower() == "true"
 
 
 def test_blockscout_transactions_pagination(tmp_path):
@@ -150,7 +150,7 @@ print("REQ_PARAMS:" + CALLS[1])
     assert get(o, "COUNT1:") == "1", o
     assert get(o, "TX:") == "0xaaa"
     assert get(o, "FROM:") == "0xfrom"
-    assert get(o, "CURSOR:") == "True", "next_page_params not exposed as cursor"
+    assert get(o, "CURSOR:").lower() == "true", "next_page_params not exposed as cursor"
     assert get(o, "COUNT2:") == "0"
     assert get(o, "CURSOR2:") == "None"
     assert "index=154" in get(o, "REQ_PARAMS:"), get(o, "REQ_PARAMS:")
@@ -208,7 +208,7 @@ print("FAST:%s" % ((time.monotonic() - t0) < 2))
     assert get(o, "STATUS:") == "OK", o
     assert get(o, "DATA:") == "42"
     assert get(o, "ATTEMPTS:") == "2", f"expected one retry, got {get(o, 'ATTEMPTS:')}"
-    assert get(o, "FAST:") == "True"
+    assert get(o, "FAST:").lower() == "true"
 
 
 def test_error_result_does_not_leak_key(tmp_path):
@@ -237,8 +237,8 @@ print("ERR:%s" % str(r.error)[:80])
 """
     o = out(run(code, tmp_path))
     assert get(o, "STATUS:") in {"ERROR", "RATE_LIMITED"}, o
-    assert get(o, "HAS_ERROR:") == "True"
-    assert get(o, "LEAK:") == "False", "API key leaked into logs/errors"
+    assert get(o, "HAS_ERROR:").lower() == "true"
+    assert get(o, "LEAK:").lower() == "false", "API key leaked into logs/errors"
 
 
 def test_registry_failover(tmp_path):
@@ -290,11 +290,11 @@ with session_scope(factory) as s:
     print("UTC:%s" % (snap.taken_at.tzinfo is not None))
 """
     o = out(run(code, tmp_path))
-    assert get(o, "SNAP:") == "True", o
+    assert get(o, "SNAP:").lower() == "true", o
     assert get(o, "BALANCE:") == "5780441042197210512"
-    assert get(o, "IS_DECIMAL:") == "True"
+    assert get(o, "IS_DECIMAL:").lower() == "true"
     assert get(o, "BLOCK:") == "26343086"
-    assert get(o, "UTC:") == "True"
+    assert get(o, "UTC:").lower() == "true"
 
 
 FROZEN_REVISIONS = {
