@@ -25,19 +25,34 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_file}")
 
-    # Upgrade to head (004)
+    # Upgrade to head (005)
     command.upgrade(cfg, "head")
     conn = sqlite3.connect(str(db_file))
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    cols_004 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
+    cols_005 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
+    indexes_act = {r[1] for r in conn.execute("PRAGMA index_list(activities)").fetchall()}
+    indexes_tx = {r[1] for r in conn.execute("PRAGMA index_list(transactions)").fetchall()}
     conn.close()
     assert len(tables) == 24
     assert "wallets" in tables
     assert "wallet_audit_log" in tables
     assert "alembic_version" in tables
+    assert "taken_at" not in cols_005
+    assert "snapshot_at" in cols_005
+    assert "block_number" in cols_005
+    assert "uq_activity_wallet_tx_log" in indexes_act
+    assert "uq_transaction_wallet_network_tx" in indexes_tx
+
+    # Downgrade 1 revision (to 004)
+    command.downgrade(cfg, "-1")
+    conn = sqlite3.connect(str(db_file))
+    cols_004 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
+    indexes_act_004 = {r[1] for r in conn.execute("PRAGMA index_list(activities)").fetchall()}
+    indexes_tx_004 = {r[1] for r in conn.execute("PRAGMA index_list(transactions)").fetchall()}
+    conn.close()
     assert "taken_at" not in cols_004
-    assert "snapshot_at" in cols_004
-    assert "block_number" in cols_004
+    assert "uq_activity_wallet_tx_log" not in indexes_act_004
+    assert "uq_transaction_wallet_network_tx" not in indexes_tx_004
 
     # Downgrade 1 revision (to 003)
     command.downgrade(cfg, "-1")

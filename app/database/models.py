@@ -432,6 +432,7 @@ class Activity(Base):
     __tablename__ = "activities"
     __table_args__ = (
         UniqueConstraint("network_id", "tx_hash", "log_index", name="uq_activity_dedupe"),
+        Index("uq_activity_wallet_tx_log", "wallet_id", "tx_hash", "log_index", unique=True),
         Index("ix_activities_occurred_at", "occurred_at"),
     )
 
@@ -476,6 +477,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
     __table_args__ = (
         UniqueConstraint("network_id", "tx_hash", name="uq_transaction_network_tx_hash"),
+        Index("uq_transaction_wallet_network_tx", "wallet_id", "network_id", "tx_hash", unique=True),
         Index("ix_transactions_tx_hash", "tx_hash"),
     )
 
