@@ -698,3 +698,33 @@ MVP (A1–A12) закрыт. Пользователь: «запусти след
 пропущенная цена → `usd_value=None`, но снимок всё равно пишется (баланс — факт), upsert позиций
 по (wallet, network, protocol, type), закрытый набор certainty, confirmed считается отдельно от
 inferred/unknown, история стоимости по времени.
+
+---
+
+## 2026-11-05 11:30 — Этап 7A/7B (DeFi Analyzer + экран) принят. PLAN Этап 6 закрыт.
+
+**7A (core `DeFiAnalyzer`):** снимки токен-балансов (decimals через `Decimal`, цена из провайдера,
+пропущенная цена → `usd_value=None`, но снимок пишется), upsert позиций по
+(wallet, network, protocol, type) с закрытым набором certainty, агрегация с отдельной суммой
+`confirmed` от `inferred`/`unknown`, история стоимости по времени. Гейт 7A `6 passed`.
+**7B (экран DeFi):** суммарные карточки total/confirmed/inferred/unknown, разбивка по протоколам
+и сетям, таблица позиций с колонкой certainty, empty state. Гейт 7B `3 passed`.
+
+**Грабли приёмки, найденные на гейтах 7A/7B (все три — мои, не агента):**
+1. `Numeric(38,18)` печатает Decimal с нормализацией (`2.5`, не `2.500000`) — сравнивать численно
+   (`Decimal(...) == Decimal(...)`), а не строкой. (Повтор урока из 4A.)
+2. `DataTable` в Textual: `table.rows` — это `OrderedDict[RowKey, Row]`, ячейки достаются через
+   `table.get_row(row_key)`, заголовки — `[c.label for c in table.columns.values()]`;
+   `Label` не имеет `.renderable` — текст через `label.render()`.
+3. Вкладывать вызовы менеджеров, которые сами открывают сессию и делают `commit`, внутрь открытой
+   `session_scope` нельзя — SQLite даёт `database is locked`. Сид и анализ — в отдельных блоках.
+
+| Проверка | Результат |
+|---|---|
+| все гейты (17 файлов) | **112 passed in 425s** |
+| тесты проекта | **242 passed in 76s** |
+| живой тест | **2 passed** |
+| ruff | `All checks passed!` |
+
+Осталось по PLAN: Этап 7 (Relationship Graph) и Этап 8 (Solana, кастомные сети, RPC-фолбэк,
+бэкап/восстановление, документация).
