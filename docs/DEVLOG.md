@@ -758,3 +758,22 @@ float/UI в core. Запущен AGY (PID 1128922).
 инициализации и при `set_options()`; обработчики `on_select_changed` должны игнорировать оба
 sentinel, иначе отложенное событие затирает состояние экрана. (Аналогия с B9: отложенные события
 Textual перетирают явные действия.)
+
+---
+
+## 2026-11-05 14:10 — Этап 8 (финализация) принят. Все 8 этапов PLAN закрыты.
+
+- **9A `RpcFailoverProvider`:** упорядоченный фолбэк по списку RPC-эндпоинтов (5xx/429/transport →
+  следующий), `healthy` как флаг наблюдаемости (не фильтр вызовов — восстановившийся primary снова
+  пробуется), hex-парсинг баланса/блока, явный UNSUPPORTED. Гейт 9A: `6 passed`.
+- **9B `RpcManager`:** кастомные сети (валидация chain_type evm|solana, дубли name/(type,id) →
+  ValueError), RPC-эндпоинты по приоритету, `set_primary` (ровно один primary), проверка chain_id.
+  Гейт 9B: `5 passed`.
+- **9C `SolanaProvider`:** getBalance → lamports Decimal (raw-единицы, как wei для EVM), getSlot →
+  int, getHealth; Solana возвращает JSON-числа, не hex. Гейт 9C: `6 passed`.
+- **9D `backup.py`:** согласованный снапшот (SQLite backup API), sha256 совпадает с файлом,
+  восстановление с валидацией (`verify_backup_file`), integrity_check. Гейт 9D: `5 passed`.
+
+**Уроки приёмки (повтор):** (1) `Path` не был импортирован в TMPL-преамбулу гейта — subprocess-скрипт
+падал с `NameError`; (2) агент оставил мусорный `test_shrink.db` в корне — после прогона проверять
+не только `git status` новых файлов, но и артефакты БД вне git.
