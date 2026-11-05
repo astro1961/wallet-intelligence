@@ -728,3 +728,14 @@ inferred/unknown, история стоимости по времени.
 
 Осталось по PLAN: Этап 7 (Relationship Graph) и Этап 8 (Solana, кастомные сети, RPC-фолбэк,
 бэкап/восстановление, документация).
+
+---
+
+## 2026-11-05 12:05 — Начат Этап 7 по PLAN (Relationship Graph)
+
+Модель `WalletRelation` уже есть (ревизия 001: from/to_wallet_id, relation_type, confidence,
+notes, detected_at), `networkx>=3.3` в зависимостях. Не хватало `graph_manager.py` и наполнения
+`GraphScreen` (заглушка). Гейт `gate_stage8.py` (6 проверок): dedup+self-loop+нормализация адресов,
+`build_graph` (networkx.Graph по адресам, рёбра с relation_type/confidence), `neighbors`,
+`infer_from_transactions` (связь между двумя своими кошельками из Transfer), `export_json`, запрет
+float/UI в core. Запущен AGY (PID 1128922).
