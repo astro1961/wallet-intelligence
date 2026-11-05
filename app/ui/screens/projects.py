@@ -12,6 +12,7 @@ from textual.css.query import NoMatches
 from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Input, Label, Select, Static
+from textual.widgets.data_table import RowDoesNotExist
 
 from app.core.project_manager import ProjectManager
 from app.database.session import session_scope
@@ -90,6 +91,7 @@ class ProjectsScreen(BaseAppScreen):
         self._projects_rows: list[str] = []
         self._participation_text: str = ""
         self._loaded: bool = False
+        self._ignore_next_highlight_on_filter_reset: bool = False
 
     def _get_session_factory(self) -> sessionmaker[Session] | None:
         if self._session_factory is not None:
@@ -200,8 +202,27 @@ class ProjectsScreen(BaseAppScreen):
 
         self._update_views(projects_data)
 
+        visible_ids = {p.id for p, _, _ in projects_data}
         if self.selected_project_id is not None:
-            self.show_participation(self.selected_project_id)
+            if self.selected_project_id in visible_ids:
+                self.show_participation(self.selected_project_id)
+            else:
+                self.reset_participation()
+                self._ignore_next_highlight_on_filter_reset = bool(visible_ids)
+        else:
+            self.reset_participation()
+
+    def reset_participation(self) -> None:
+        """Reset participation panel to neutral empty state."""
+        self.selected_project_id = None
+        self._participation_text = ""
+        for target_id in ("#participation-panel", "#participation-text"):
+            try:
+                self.query_one(target_id, Static).update(self._participation_text)
+            except NoMatches:
+                logger.debug("Widget %s not found in DOM", target_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Error updating %s widget: %s", target_id, exc)
 
     def _update_views(self, projects_data: list[tuple[Any, int, dict[str, Any]]]) -> None:
         try:
@@ -325,6 +346,23 @@ class ProjectsScreen(BaseAppScreen):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Error updating %s widget: %s", target_id, exc)
 
+        # Move table cursor to the project's row (Option A)
+        try:
+            table = self.query_one("#projects-table", DataTable)
+            row_key_str = str(project_id)
+            if row_key_str in table.rows:
+                row_idx = table.get_row_index(row_key_str)
+                if table.cursor_row != row_idx:
+                    table.move_cursor(row=row_idx)
+            else:
+                logger.debug("Project %s row not in table (filtered out)", project_id)
+        except NoMatches:
+            logger.debug("projects-table not present in DOM during show_participation")
+        except RowDoesNotExist as exc:
+            logger.debug("Row %s does not exist in table: %s", project_id, exc)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Error moving table cursor for project %s: %s", project_id, exc)
+
     def create_project(
         self,
         name: str,
@@ -372,6 +410,18 @@ class ProjectsScreen(BaseAppScreen):
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Update participation view when cursor moves over a row."""
+        if event.cursor_row != event.data_table.cursor_row:
+            logger.debug(
+                "Skipping stale RowHighlighted event: event row %s != table cursor row %s",
+                event.cursor_row,
+                event.data_table.cursor_row,
+            )
+            return
+
+        if self._ignore_next_highlight_on_filter_reset:
+            self._ignore_next_highlight_on_filter_reset = False
+            return
+
         if event.row_key and event.row_key.value:
             try:
                 p_id = int(event.row_key.value)
