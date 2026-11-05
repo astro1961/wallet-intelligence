@@ -211,3 +211,96 @@ async def test_archive_wallet_flow() -> None:
         with session_scope(app.state.session_factory) as s:
             w = s.get(Wallet, ids["w1"])
             assert w.archived is True
+
+
+@pytest.mark.asyncio
+async def test_cursor_move_to_row_0_updates_details() -> None:
+    """move_cursor(0) -> panel contains the first wallet's name/address."""
+    app = WalletTrackerApp()
+    async with app.run_test(size=(140, 45)) as pilot:
+        seed_test_wallets(app)
+        await pilot.press("2")
+        await pilot.pause()
+        screen = app.screen
+        screen.refresh_data()
+        await pilot.pause()
+
+        table = screen.query_one("#wallet-table", DataTable)
+        details = screen.query_one("#wallet-details")
+
+        table.move_cursor(row=0)
+        await pilot.pause()
+        content = str(getattr(details, "renderable", details.render()))
+        assert "Alpha" in content
+        assert "0x1111111111111111111111111111111111111111" in content
+
+
+@pytest.mark.asyncio
+async def test_cursor_move_to_row_1_updates_details_and_clears_first() -> None:
+    """move_cursor(1) -> panel contains the second wallet's name/address and no longer the first."""
+    app = WalletTrackerApp()
+    async with app.run_test(size=(140, 45)) as pilot:
+        seed_test_wallets(app)
+        await pilot.press("2")
+        await pilot.pause()
+        screen = app.screen
+        screen.refresh_data()
+        await pilot.pause()
+
+        table = screen.query_one("#wallet-table", DataTable)
+        details = screen.query_one("#wallet-details")
+
+        table.move_cursor(row=0)
+        await pilot.pause()
+        first = str(getattr(details, "renderable", details.render()))
+        assert "Alpha" in first
+
+        table.move_cursor(row=1)
+        await pilot.pause()
+        second = str(getattr(details, "renderable", details.render()))
+        assert "Beta" in second
+        assert "Alpha" not in second
+
+
+@pytest.mark.asyncio
+async def test_press_enter_on_row_fills_history_text() -> None:
+    """press('enter') on a row -> history_text is filled (regression guard)."""
+    app = WalletTrackerApp()
+    async with app.run_test(size=(140, 45)) as pilot:
+        seed_test_wallets(app)
+        await pilot.press("2")
+        await pilot.pause()
+        screen = app.screen
+        screen.refresh_data()
+        await pilot.pause()
+
+        table = screen.query_one("#wallet-table", DataTable)
+        table.move_cursor(row=1)
+        await pilot.pause()
+        table.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert hasattr(screen, "history_text")
+        assert "Beta" in screen.history_text
+        assert "Beta updated notes" in screen.history_text
+
+
+@pytest.mark.asyncio
+async def test_empty_table_keeps_placeholder_without_traceback() -> None:
+    """Empty table -> panel keeps the placeholder, no traceback."""
+    app = WalletTrackerApp()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("2")
+        await pilot.pause()
+        screen = app.screen
+        table = screen.query_one("#wallet-table", DataTable)
+        assert len(table.rows) == 0
+        table.move_cursor(row=0)
+        await pilot.pause()
+
+        details = screen.query_one("#wallet-details")
+        text = str(getattr(details, "renderable", details.render()))
+        assert "Select a wallet and press Enter to view details and audit history." in text
+        assert "Traceback" not in text
+

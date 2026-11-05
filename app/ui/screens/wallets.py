@@ -1,6 +1,7 @@
 """Wallets screen for managing crypto addresses, hierarchical groups, and metadata."""
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from contextlib import suppress
 from typing import Any, ClassVar
@@ -29,10 +30,13 @@ from app.ui.screens.group_modals import (
 )
 from app.ui.screens.wallet_form import WalletFormScreen
 
+logger = logging.getLogger(__name__)
+
 EMPTY_WALLETS_MSG = (
     "Кошельков пока нет / No wallets yet. "
     "Добавьте первый кошелек (нажмите 'a') / Add your first wallet (press 'a')"
 )
+DETAILS_PLACEHOLDER = "Select a wallet and press Enter to view details and audit history."
 
 
 class WalletsScreen(BaseAppScreen):
@@ -96,7 +100,7 @@ class WalletsScreen(BaseAppScreen):
                 table.cursor_type = "row"
                 yield table
                 yield Static(
-                    "Select a wallet and press Enter to view details and audit history.",
+                    DETAILS_PLACEHOLDER,
                     id="wallet-details",
                 )
 
@@ -228,40 +232,79 @@ class WalletsScreen(BaseAppScreen):
             empty_state = self.query_one("#empty-state", Static)
             empty_state.display = len(wallets) == 0
 
+            if not wallets:
+                self.selected_wallet_id = None
+                with suppress(NoMatches):
+                    details = self.query_one("#wallet-details", Static)
+                    details.update(DETAILS_PLACEHOLDER)
+            else:
+                cursor_row = table.cursor_row if table.cursor_row is not None else 0
+                if 0 <= cursor_row < len(wallets):
+                    target_wallet = wallets[cursor_row]
+                else:
+                    target_wallet = wallets[0]
+                self.show_details(target_wallet.id)
+
     def set_group_filter(self, group_id: int | None) -> None:
         """Filter table rows by group_id (including subgroups); None displays all."""
         self.selected_group_id = group_id
         self._refresh_wallet_table()
 
+    @staticmethod
+    def _format_wallet_summary(wallet: Wallet) -> list[str]:
+        lines = [
+            f"Wallet: {wallet.name or 'Unnamed'} ({wallet.address})",
+            f"Group: {wallet.group.name if wallet.group else 'Unassigned'}",
+            f"Notes: {wallet.notes or 'None'}",
+        ]
+        if wallet.socials:
+            soc_str = ", ".join(f"{s.platform}:{s.handle or s.url}" for s in wallet.socials)
+            lines.append(f"Socials: {soc_str}")
+        return lines
+
+    def show_details(self, wallet_id: int) -> None:
+        """Fill #wallet-details with wallet metadata on highlight without loading audit history."""
+        self.selected_wallet_id = wallet_id
+        try:
+            with session_scope(self.session_factory) as session:
+                wm = WalletManager(session)
+                wallet = wm.get_wallet(wallet_id)
+                if wallet is None:
+                    return
+
+                lines = self._format_wallet_summary(wallet)
+                lines.append("Audit History: press Enter to view full history.")
+                with suppress(NoMatches):
+                    details = self.query_one("#wallet-details", Static)
+                    details.update("\n".join(lines))
+        except (SQLAlchemyError, RuntimeError, ValueError) as exc:
+            logger.warning("Failed to show details for wallet %s: %s", wallet_id, exc)
+
     def show_history(self, wallet_id: int) -> None:
         """Fill #wallet-details and history_text with wallet notes, socials, and audit history."""
         self.selected_wallet_id = wallet_id
-        with suppress(SQLAlchemyError, Exception), session_scope(self.session_factory) as session:
-            wm = WalletManager(session)
-            wallet = wm.get_wallet(wallet_id)
-            if wallet is None:
-                return
+        try:
+            with session_scope(self.session_factory) as session:
+                wm = WalletManager(session)
+                wallet = wm.get_wallet(wallet_id)
+                if wallet is None:
+                    return
 
-            history_entries = wm.history(wallet_id)
-            lines = [
-                f"Wallet: {wallet.name or 'Unnamed'} ({wallet.address})",
-                f"Group: {wallet.group.name if wallet.group else 'Unassigned'}",
-                f"Notes: {wallet.notes or 'None'}",
-            ]
-            if wallet.socials:
-                soc_str = ", ".join(f"{s.platform}:{s.handle or s.url}" for s in wallet.socials)
-                lines.append(f"Socials: {soc_str}")
-            lines.append("Audit History / История изменений:")
-            if not history_entries:
-                lines.append("  (No audit history recorded)")
-            for entry in history_entries:
-                ts = entry.changed_at.strftime("%Y-%m-%d %H:%M:%S") if entry.changed_at else ""
-                lines.append(f"  [{ts}] {entry.field}: {entry.old_value} -> {entry.new_value}")
+                history_entries = wm.history(wallet_id)
+                lines = self._format_wallet_summary(wallet)
+                lines.append("Audit History / История изменений:")
+                if not history_entries:
+                    lines.append("  (No audit history recorded)")
+                for entry in history_entries:
+                    ts = entry.changed_at.strftime("%Y-%m-%d %H:%M:%S") if entry.changed_at else ""
+                    lines.append(f"  [{ts}] {entry.field}: {entry.old_value} -> {entry.new_value}")
 
-            self.history_text = "\n".join(lines)
-            with suppress(NoMatches):
-                details = self.query_one("#wallet-details", Static)
-                details.update(self.history_text)
+                self.history_text = "\n".join(lines)
+                with suppress(NoMatches):
+                    details = self.query_one("#wallet-details", Static)
+                    details.update(self.history_text)
+        except (SQLAlchemyError, RuntimeError, ValueError) as exc:
+            logger.warning("Failed to show wallet history for %s: %s", wallet_id, exc)
 
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         data = event.node.data
@@ -293,9 +336,28 @@ class WalletsScreen(BaseAppScreen):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.row_key and event.row_key.value:
-            with suppress(ValueError, TypeError):
+            try:
                 wid = int(event.row_key.value)
                 self.show_history(wid)
+            except (ValueError, TypeError) as exc:
+                logger.warning("Invalid wallet row_key %r on select: %s", event.row_key.value, exc)
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Update wallet details when the highlighted row changes."""
+        row_idx = getattr(event, "cursor_row", getattr(event, "row_index", None))
+        if row_idx is None or row_idx < 0:
+            return
+        row_key = getattr(event, "row_key", None)
+        if not row_key or not getattr(row_key, "value", None):
+            return
+        table = getattr(event, "data_table", None)
+        if table is not None and table.row_count == 0:
+            return
+        try:
+            wid = int(row_key.value)
+            self.show_details(wid)
+        except (ValueError, TypeError) as exc:
+            logger.warning("Invalid wallet row_key %r on highlight: %s", row_key.value, exc)
 
     def action_focus_search(self) -> None:
         with suppress(NoMatches):
