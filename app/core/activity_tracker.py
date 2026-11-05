@@ -1,7 +1,9 @@
 """Activity tracker for recording and classifying blockchain activities."""
 from __future__ import annotations
 
+import json
 import logging
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -203,5 +205,93 @@ class ActivityTracker:
             w.first_activity_at = occurred_at
         if w.last_activity_at is None or occurred_at > _to_utc(w.last_activity_at):
             w.last_activity_at = occurred_at
+
+        return act
+
+    def add_manual(
+        self,
+        session: Session,
+        wallet: Wallet | int,
+        network: Network | int | str,
+        activity_type: str,
+        amount: Decimal | None = None,
+        occurred_at: datetime | None = None,
+        note: str | None = None,
+    ) -> Activity:
+        """Create and persist a manual activity record.
+
+        - is_manual=True, source="manual", status="manual"
+        - tx_hash is a synthetic unique key: manual-<uuid4 hex>
+        - occurred_at defaults to now in UTC
+        - extra_data stores note as JSON
+        """
+        # Resolve wallet instance
+        if isinstance(wallet, Wallet):
+            w = wallet
+        else:
+            w = session.get(Wallet, int(wallet))
+            if w is None:
+                raise ValueError(f"Wallet with id {wallet} not found")
+
+        # Resolve network instance
+        if isinstance(network, Network):
+            net = network
+        elif isinstance(network, int):
+            net = session.get(Network, network)
+            if net is None:
+                raise ValueError(f"Network with id {network} not found")
+        else:
+            net = session.execute(
+                select(Network).where(func.lower(Network.name) == str(network).strip().lower())
+            ).scalar_one_or_none()
+            if net is None:
+                raise ValueError(f"Network '{network}' not found")
+
+        amount_dec: Decimal | None = None
+        if amount is not None:
+            if isinstance(amount, float):
+                raise TypeError(f"Amount must be Decimal or int, got float: {amount}")
+            if not isinstance(amount, Decimal):
+                amount_dec = Decimal(str(amount))
+            else:
+                amount_dec = amount
+
+        occ_dt = _to_utc(occurred_at)
+        synthetic_hash = f"manual-{uuid.uuid4().hex}"
+
+        extra_data: str | None = None
+        if note is not None:
+            if isinstance(note, dict):
+                extra_data = json.dumps(note)
+            else:
+                extra_data = json.dumps({"note": note})
+
+        token_sym = getattr(net, "native_token", None)
+
+        act = Activity(
+            wallet_id=w.id,
+            network_id=net.id,
+            project_id=None,
+            tx_hash=synthetic_hash,
+            log_index=0,
+            activity_type=activity_type,
+            occurred_at=occ_dt,
+            contract_address=None,
+            token_symbol=token_sym,
+            amount=amount_dec,
+            status="manual",
+            source="manual",
+            is_manual=True,
+            explorer_url=None,
+            extra_data=extra_data,
+        )
+        session.add(act)
+        session.flush()
+
+        # Update wallet activity timestamps if applicable
+        if w.first_activity_at is None or occ_dt < _to_utc(w.first_activity_at):
+            w.first_activity_at = occ_dt
+        if w.last_activity_at is None or occ_dt > _to_utc(w.last_activity_at):
+            w.last_activity_at = occ_dt
 
         return act

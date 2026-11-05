@@ -37,6 +37,7 @@ class ActivitiesScreen(BaseAppScreen):
         self.type_filter: str | None = None
         self.network_filter: str | None = None
         self.project_filter: int | None = None
+        self.manual_filter: str | None = None
         self._rows: list[str] = []
         self._loaded: bool = False
 
@@ -64,6 +65,11 @@ class ActivitiesScreen(BaseAppScreen):
             yield Label(
                 f"[Project: {self.project_filter if self.project_filter is not None else 'All'}]",
                 id="filter-project",
+                classes="filter-badge",
+            )
+            yield Label(
+                f"[Source: {self.manual_filter.capitalize() if self.manual_filter else 'All'}]",
+                id="filter-manual",
                 classes="filter-badge",
             )
         with Vertical(id="activities-feed-box", classes="feed-box"):
@@ -101,6 +107,10 @@ class ActivitiesScreen(BaseAppScreen):
                     )
                 if self.project_filter is not None:
                     stmt = stmt.where(Activity.project_id == self.project_filter)
+                if self.manual_filter == "manual":
+                    stmt = stmt.where(Activity.is_manual == True)
+                elif self.manual_filter == "auto":
+                    stmt = stmt.where(Activity.is_manual == False)
 
                 stmt = stmt.limit(200)
                 activities = list(session.execute(stmt).scalars().all())
@@ -114,6 +124,8 @@ class ActivitiesScreen(BaseAppScreen):
                     time_str = occ_utc.strftime("%H:%M %d.%m")
 
                     act_type = act.activity_type or "unknown"
+                    if act.is_manual:
+                        act_type = f"✎ {act_type}"
 
                     if act.wallet and act.wallet.name:
                         w_str = act.wallet.name
@@ -159,6 +171,8 @@ class ActivitiesScreen(BaseAppScreen):
             n_lbl.update(f"[Network: {self.network_filter or 'All'}]")
             p_lbl = self.query_one("#filter-project", Label)
             p_lbl.update(f"[Project: {self.project_filter if self.project_filter is not None else 'All'}]")
+            m_lbl = self.query_one("#filter-manual", Label)
+            m_lbl.update(f"[Source: {self.manual_filter.capitalize() if self.manual_filter else 'All'}]")
 
     @property
     def activity_text(self) -> str:
@@ -182,4 +196,15 @@ class ActivitiesScreen(BaseAppScreen):
     def set_project_filter(self, project_id: int | None) -> None:
         """Filter activities by project id or restore all if None."""
         self.project_filter = project_id
+        self.refresh_data()
+
+    def set_manual_filter(self, kind: str | None) -> None:
+        """Filter activities by manual/auto kind: 'manual', 'auto', or None for both."""
+        if kind is not None:
+            norm = kind.strip().lower()
+            if norm not in ("manual", "auto"):
+                norm = None
+            self.manual_filter = norm
+        else:
+            self.manual_filter = None
         self.refresh_data()

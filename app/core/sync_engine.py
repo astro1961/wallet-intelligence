@@ -68,6 +68,53 @@ class SyncEngine:
         self.providers = providers
         self.config = config
         self.tracker = ActivityTracker(session_factory, config)
+        self._paused: bool = False
+
+    def request_pause(self) -> None:
+        """Request synchronization to pause after the currently running wallet finishes."""
+        self._paused = True
+
+    def request_resume(self) -> None:
+        """Clear pause state so subsequent sync operations process all wallets."""
+        self._paused = False
+
+    @property
+    def is_paused(self) -> bool:
+        """Check whether synchronization is currently requested to be paused."""
+        return self._paused
+
+    def _skip_paused_wallet(self, wallet_id: int, network: str | None = None) -> SyncReport:
+        """Record a paused SyncJob and return a skipped SyncReport for a wallet."""
+        now = datetime.now(UTC)
+        target_net_name = network or "unknown"
+        with self.session_factory() as session:
+            wallet = session.get(Wallet, wallet_id)
+            net_id: int | None = None
+            if wallet is not None:
+                net = self._resolve_network(session, wallet, network)
+                if net is not None:
+                    net_id = net.id
+                    target_net_name = net.name
+
+            job = SyncJob(
+                wallet_id=wallet_id,
+                network_id=net_id,
+                job_type="wallet_sync",
+                status="paused",
+                started_at=now,
+                finished_at=now,
+                error_message="Sync paused by request",
+                created_at=now,
+            )
+            session.add(job)
+            session.commit()
+
+        return SyncReport(
+            wallet_id=wallet_id,
+            network=target_net_name,
+            status="skipped",
+            error="Sync paused by request",
+        )
 
     def _resolve_network(self, session: Session, wallet: Wallet, network_name: str | None) -> Network | None:
         """Resolve target Network model for a wallet sync operation."""
@@ -91,6 +138,9 @@ class SyncEngine:
 
     def sync_wallet(self, wallet_id: int, network: str | None = None) -> SyncReport:
         """Synchronize native balance, transactions, and activities for a single wallet."""
+        if self._paused:
+            return self._skip_paused_wallet(wallet_id, network=network)
+
         with self.session_factory() as session:
             wallet = session.get(Wallet, wallet_id)
             if wallet is None:
@@ -414,6 +464,10 @@ class SyncEngine:
 
         reports: list[SyncReport] = []
         for wid in wallet_ids:
+            if self._paused:
+                reports.append(self._skip_paused_wallet(wid, network=network))
+                continue
+
             try:
                 report = self.sync_wallet(wid, network=network)
                 reports.append(report)

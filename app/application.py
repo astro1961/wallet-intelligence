@@ -68,6 +68,7 @@ class WalletTrackerApp(App):
         Binding("a", "add_wallet", "Add Wallet"),
         Binding("i", "import_wallets", "Import"),
         Binding("s", "sync_now", "Sync"),
+        Binding("p", "toggle_pause", "Pause"),
         Binding("r", "refresh", "Refresh"),
         Binding("f", "filters", "Filters"),
         Binding("g", "graph", "Graph"),
@@ -101,6 +102,44 @@ class WalletTrackerApp(App):
             )
         self.config = config
         self.state = state
+        self._sync_engine: SyncEngine | None = None
+
+    @property
+    def sync_engine(self) -> SyncEngine:
+        """Get or lazily instantiate the shared SyncEngine."""
+        if self.state and getattr(self.state, "sync_engine", None) is not None:
+            return self.state.sync_engine
+
+        if self._sync_engine is None:
+            fact = self.state.session_factory if self.state else None
+            cfg = self.config or (self.state.config if self.state else None) or load_config()
+            if fact is None:
+                if self.state and self.state.engine is not None:
+                    fact = session_factory(self.state.engine)
+                else:
+                    engine = init_db(cfg)
+                    fact = session_factory(engine)
+                    if self.state:
+                        self.state.engine = engine
+                        self.state.session_factory = fact
+
+            providers = (self.state.providers if self.state else None) or create_provider_registry(cfg)
+            self._sync_engine = SyncEngine(fact, providers, cfg)
+            if self.state:
+                self.state.sync_engine = self._sync_engine
+        else:
+            if self.state and self.state.providers is not None and self._sync_engine.providers != self.state.providers:
+                self._sync_engine.providers = self.state.providers
+            if self.state and self.state.session_factory is not None and self._sync_engine.session_factory != self.state.session_factory:
+                self._sync_engine.session_factory = self.state.session_factory
+
+        return self._sync_engine
+
+    @sync_engine.setter
+    def sync_engine(self, engine: SyncEngine) -> None:
+        self._sync_engine = engine
+        if self.state:
+            self.state.sync_engine = engine
 
     def on_mount(self) -> None:
         """Mount initial dashboard screen on startup."""
@@ -144,9 +183,30 @@ class WalletTrackerApp(App):
             "sidebar_enter",
             "sync_now",
             "action_sync_now",
+            "toggle_pause",
+            "action_toggle_pause",
         ):
             return False
         return super().check_action(action, parameters)
+
+    def action_toggle_pause(self) -> None:
+        """Toggle sync engine pause/resume state."""
+        engine = self.sync_engine
+        if engine.is_paused:
+            engine.request_resume()
+            new_state = "idle"
+            msg = "Synchronization resumed"
+        else:
+            engine.request_pause()
+            new_state = "paused"
+            msg = "Synchronization paused"
+
+        if self.state:
+            self.state.sync_state = new_state
+        for sb in self.query(StatusBar):
+            sb.sync_state = new_state
+
+        self.notify(msg, title="Sync")
 
     def action_nav_to(self, screen_id: str) -> None:
         """Action handler for navigation bindings."""
@@ -231,20 +291,8 @@ class WalletTrackerApp(App):
         """Run wallet synchronization engine off the UI thread."""
         self.call_from_thread(self._sync_started)
         try:
-            fact = self.state.session_factory if self.state else None
-            cfg = self.config or (self.state.config if self.state else None) or load_config()
-            if fact is None:
-                if self.state and self.state.engine is not None:
-                    fact = session_factory(self.state.engine)
-                else:
-                    engine = init_db(cfg)
-                    fact = session_factory(engine)
-                    if self.state:
-                        self.state.engine = engine
-                        self.state.session_factory = fact
-
-            # Provider registry fallback: use state.providers or build default
-            providers = (self.state.providers if self.state else None) or create_provider_registry(cfg)
+            engine = self.sync_engine
+            fact = engine.session_factory
 
             # Check if any active wallets exist
             with fact() as session:
@@ -262,13 +310,16 @@ class WalletTrackerApp(App):
                 )
                 return
 
-            engine = SyncEngine(fact, providers, cfg)
             reports = engine.sync_all()
 
             ok_count = sum(1 for r in reports if r.status == "ok")
             failed_count = sum(1 for r in reports if r.status == "error")
+            skipped_count = sum(1 for r in reports if r.status == "skipped")
             total = len(reports)
-            msg = f"Sync complete: {ok_count} ok, {failed_count} failed"
+            if skipped_count > 0:
+                msg = f"Sync complete: {ok_count} ok, {skipped_count} skipped, {failed_count} failed"
+            else:
+                msg = f"Sync complete: {ok_count} ok, {failed_count} failed"
             self.call_from_thread(self._sync_finished, ok_count, failed_count, total, msg)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Error during sync_now: %s", exc)
@@ -288,13 +339,14 @@ class WalletTrackerApp(App):
         total_count: int,
         message: str,
     ) -> None:
-        """Update status bar to idle, record last update time, and notify on UI thread."""
+        """Update status bar to idle/paused, record last update time, and notify on UI thread."""
         now = datetime.now(UTC)
+        target_state = "paused" if self.sync_engine.is_paused else "idle"
         if self.state:
-            self.state.sync_state = "idle"
+            self.state.sync_state = target_state
             self.state.last_update = now
         for sb in self.query(StatusBar):
-            sb.sync_state = "idle"
+            sb.sync_state = target_state
             sb.last_update = now
 
         if hasattr(self.screen, "refresh_data"):

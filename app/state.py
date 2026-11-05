@@ -23,3 +23,4 @@ class AppState:
     filters: dict[str, Any] = field(default_factory=dict)
     active_screen: str = "dashboard"
     providers: Any | None = None  # ProviderRegistry injected by the app or by tests
+    sync_engine: Any | None = None
