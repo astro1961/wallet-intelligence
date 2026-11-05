@@ -17,6 +17,7 @@ from textual.widget import Widget
 from textual.widgets import Input, ListView, TextArea
 
 from app.config import AppConfig, load_config
+from app.core.defi_analyzer import DeFiAnalyzer
 from app.core.sync_engine import SyncEngine
 from app.database.models import Wallet
 from app.database.session import init_db, session_factory
@@ -103,6 +104,7 @@ class WalletTrackerApp(App):
         self.config = config
         self.state = state
         self._sync_engine: SyncEngine | None = None
+        self._defi_analyzer: DeFiAnalyzer | None = None
 
     @property
     def sync_engine(self) -> SyncEngine:
@@ -140,6 +142,39 @@ class WalletTrackerApp(App):
         self._sync_engine = engine
         if self.state:
             self.state.sync_engine = engine
+
+    @property
+    def defi_analyzer(self) -> DeFiAnalyzer:
+        """Get or lazily instantiate the shared DeFiAnalyzer."""
+        if self._defi_analyzer is None:
+            fact = self.state.session_factory if self.state else None
+            cfg = self.config or (self.state.config if self.state else None) or load_config()
+            if fact is None:
+                if self.state and self.state.engine is not None:
+                    fact = session_factory(self.state.engine)
+                else:
+                    engine = init_db(cfg)
+                    fact = session_factory(engine)
+                    if self.state:
+                        self.state.engine = engine
+                        self.state.session_factory = fact
+
+            providers = (self.state.providers if self.state else None) or create_provider_registry(cfg)
+            price_prov = providers.get("defillama") if providers and hasattr(providers, "get") else None
+            self._defi_analyzer = DeFiAnalyzer(fact, price_prov, cfg)
+        else:
+            if (
+                self.state
+                and self.state.session_factory is not None
+                and self._defi_analyzer.session_factory != self.state.session_factory
+            ):
+                self._defi_analyzer.session_factory = self.state.session_factory
+
+        return self._defi_analyzer
+
+    @defi_analyzer.setter
+    def defi_analyzer(self, analyzer: DeFiAnalyzer) -> None:
+        self._defi_analyzer = analyzer
 
     def on_mount(self) -> None:
         """Mount initial dashboard screen on startup."""
