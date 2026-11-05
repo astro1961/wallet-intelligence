@@ -1,11 +1,14 @@
 """Main Textual application shell for Wallet Intelligence Tracker."""
 from __future__ import annotations
 
+import logging
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
+from sqlalchemy import func, select
+from textual import work
 from textual.app import App, ScreenStackError
 from textual.binding import Binding
 from textual.css.query import DOMQuery, NoMatches
@@ -14,7 +17,10 @@ from textual.widget import Widget
 from textual.widgets import Input, ListView, TextArea
 
 from app.config import AppConfig, load_config
+from app.core.sync_engine import SyncEngine
+from app.database.models import Wallet
 from app.database.session import init_db, session_factory
+from app.providers.factory import create_provider_registry
 from app.state import AppState
 from app.ui.screens.activities import ActivitiesScreen
 from app.ui.screens.dashboard import DashboardScreen
@@ -28,6 +34,7 @@ from app.ui.screens.wallets import WalletsScreen
 from app.ui.widgets.status_bar import StatusBar
 
 CSS_FILE = Path(__file__).parent / "ui" / "styles" / "app.tcss"
+logger = logging.getLogger(__name__)
 
 
 class WalletTrackerApp(App):
@@ -60,6 +67,7 @@ class WalletTrackerApp(App):
         Binding("q", "quit_app", "Quit"),
         Binding("a", "add_wallet", "Add Wallet"),
         Binding("i", "import_wallets", "Import"),
+        Binding("s", "sync_now", "Sync"),
         Binding("r", "refresh", "Refresh"),
         Binding("f", "filters", "Filters"),
         Binding("g", "graph", "Graph"),
@@ -134,6 +142,8 @@ class WalletTrackerApp(App):
             "sidebar_up",
             "sidebar_down",
             "sidebar_enter",
+            "sync_now",
+            "action_sync_now",
         ):
             return False
         return super().check_action(action, parameters)
@@ -215,3 +225,81 @@ class WalletTrackerApp(App):
         with suppress(NoMatches, Exception):
             sidebar = self.screen.query_one("#sidebar_list", ListView)
             sidebar.action_select_cursor()
+
+    @work(thread=True)
+    def action_sync_now(self, *args: Any, **kwargs: Any) -> None:
+        """Run wallet synchronization engine off the UI thread."""
+        self.call_from_thread(self._sync_started)
+        try:
+            fact = self.state.session_factory if self.state else None
+            cfg = self.config or (self.state.config if self.state else None) or load_config()
+            if fact is None:
+                if self.state and self.state.engine is not None:
+                    fact = session_factory(self.state.engine)
+                else:
+                    engine = init_db(cfg)
+                    fact = session_factory(engine)
+                    if self.state:
+                        self.state.engine = engine
+                        self.state.session_factory = fact
+
+            # Provider registry fallback: use state.providers or build default
+            providers = (self.state.providers if self.state else None) or create_provider_registry(cfg)
+
+            # Check if any active wallets exist
+            with fact() as session:
+                wallet_count = session.scalar(
+                    select(func.count(Wallet.id)).where(Wallet.archived == False)
+                ) or 0
+
+            if wallet_count == 0:
+                self.call_from_thread(
+                    self._sync_finished,
+                    0,
+                    0,
+                    0,
+                    "No wallets configured — press a to add a wallet",
+                )
+                return
+
+            engine = SyncEngine(fact, providers, cfg)
+            reports = engine.sync_all()
+
+            ok_count = sum(1 for r in reports if r.status == "ok")
+            failed_count = sum(1 for r in reports if r.status == "error")
+            total = len(reports)
+            msg = f"Sync complete: {ok_count} ok, {failed_count} failed"
+            self.call_from_thread(self._sync_finished, ok_count, failed_count, total, msg)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Error during sync_now: %s", exc)
+            self.call_from_thread(self._sync_finished, 0, 1, 1, f"Sync error: {exc}")
+
+    def _sync_started(self) -> None:
+        """Set status bar to syncing state on UI thread."""
+        if self.state:
+            self.state.sync_state = "syncing"
+        for sb in self.query(StatusBar):
+            sb.sync_state = "syncing"
+
+    def _sync_finished(
+        self,
+        ok_count: int,
+        failed_count: int,
+        total_count: int,
+        message: str,
+    ) -> None:
+        """Update status bar to idle, record last update time, and notify on UI thread."""
+        now = datetime.now(UTC)
+        if self.state:
+            self.state.sync_state = "idle"
+            self.state.last_update = now
+        for sb in self.query(StatusBar):
+            sb.sync_state = "idle"
+            sb.last_update = now
+
+        if hasattr(self.screen, "refresh_data"):
+            self.screen.refresh_data()
+        elif hasattr(self.screen, "refresh_counters"):
+            self.screen.refresh_counters()
+
+        self.notify(message, title="Sync")
