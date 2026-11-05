@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-import httpx
 from sqlalchemy import func, select
 
 from app.database.models import Network, RpcEndpoint, utc_now
@@ -343,7 +342,7 @@ class RpcManager:
         return list(self.session.execute(stmt).scalars().all())
 
     def check_chain_id(
-        self, network: Network | int | str, client: httpx.Client | None = None
+        self, network: Network | int | str, client: Any = None
     ) -> ProviderResult:
         """Verify chain_id via eth_chainId JSON-RPC call. Never raises exceptions."""
         try:
@@ -364,11 +363,14 @@ class RpcManager:
                 "params": [],
             }
 
-            if client is not None:
-                resp = client.post(url, json=payload)
-            else:
-                with httpx.Client(timeout=10) as temp_client:
-                    resp = temp_client.post(url, json=payload)
+            if client is None:
+                return ProviderResult(
+                    status=ProviderStatus.ERROR,
+                    error="No RPC client provided",
+                    data=None,
+                    source="rpc_manager",
+                )
+            resp = client.post(url, json=payload)
 
             if resp.status_code != 200:
                 return ProviderResult(
@@ -440,7 +442,7 @@ class RpcManager:
                 data=parsed_chain_id,
                 source="rpc_manager",
             )
-        except (httpx.HTTPError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
             return ProviderResult(
                 status=ProviderStatus.ERROR,
                 error=str(exc),
@@ -456,7 +458,7 @@ class RpcManager:
             )
 
     def check_connection(
-        self, network: Network | int | str, client: httpx.Client | None = None
+        self, network: Network | int | str, client: Any = None
     ) -> ProviderResult:
         """Check endpoint reachability via eth_blockNumber JSON-RPC call. Never raises exceptions."""
         try:
@@ -477,11 +479,14 @@ class RpcManager:
                 "params": [],
             }
 
-            if client is not None:
-                resp = client.post(url, json=payload)
-            else:
-                with httpx.Client(timeout=10) as temp_client:
-                    resp = temp_client.post(url, json=payload)
+            if client is None:
+                return ProviderResult(
+                    status=ProviderStatus.ERROR,
+                    error="No RPC client provided",
+                    data=None,
+                    source="rpc_manager",
+                )
+            resp = client.post(url, json=payload)
 
             if resp.status_code != 200:
                 self._record_health(net, url, healthy=False)
@@ -552,7 +557,7 @@ class RpcManager:
                 data=block_num,
                 source="rpc_manager",
             )
-        except (httpx.HTTPError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
             if "net" in locals() and "url" in locals() and url and isinstance(net, Network):
                 self._record_health(net, url, healthy=False)
             return ProviderResult(
