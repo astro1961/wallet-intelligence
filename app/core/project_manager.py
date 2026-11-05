@@ -117,13 +117,27 @@ class ProjectManager:
         """Fetch project by its primary key ID."""
         return self.session.get(Project, project_id)
 
-    def list_projects(self, status: str | None = None) -> list[Project]:
-        """List all projects or filter by status."""
+    def list_projects(
+        self,
+        status: str | None = None,
+        category: str | None = None,
+        newest_first: bool = False,
+    ) -> list[Project]:
+        """List all projects or filter by status and category."""
         stmt = select(Project)
         if status is not None:
             stmt = stmt.where(func.lower(Project.status) == status.strip().lower())
-        stmt = stmt.order_by(Project.id.asc())
+        if category is not None:
+            stmt = stmt.where(func.lower(Project.category) == category.strip().lower())
+        if newest_first:
+            stmt = stmt.order_by(Project.id.desc())
+        else:
+            stmt = stmt.order_by(Project.id.asc())
         return list(self.session.execute(stmt).scalars().all())
+
+    def get_wallet(self, wallet_id: int) -> Wallet | None:
+        """Fetch wallet by primary key ID."""
+        return self.session.get(Wallet, wallet_id)
 
     def count(self) -> int:
         """Return total count of projects."""
