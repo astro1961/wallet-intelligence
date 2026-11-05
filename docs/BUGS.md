@@ -121,3 +121,17 @@ upgrade (23 таблицы).
 впечатления. Закрытие подтверждается ссылкой на проверку гейта + её реальным выводом.
 Дефекты, найденные линией ревью, нумеруются B6+ и не закрываются автором кода — только
 независимой проверкой.
+
+---
+
+## B11 — GraphScreen: соседи не отображаются (Select.NULL затирает выбор)
+
+- **Где:** `app/ui/screens/graph.py` (`on_select_changed`, `select_wallet`).
+- **Симптом:** статистика графа (Nodes/Edges) рендерится верно, но таблица соседей пуста.
+  `selected_wallet` после `refresh_data` равен `Select.NULL`.
+- **Причина:** `on_select_changed` фильтрует только `Select.BLANK`; Textual шлёт `Select.Changed`
+  со значением `Select.NULL` при инициализации/`set_options()`, а `Select.NULL != Select.BLANK`.
+  `select_wallet` в else-ветке делает `self.selected_wallet = str(wallet)` для нерезолвимого
+  значения и затирает валидный выбор.
+- **Фикс:** игнорировать оба sentinel; не трогать `selected_wallet`, если значение не резолвится в
+  `Wallet` (UI-only, core не меняется).

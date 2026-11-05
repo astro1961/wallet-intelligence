@@ -280,6 +280,8 @@ class WalletTrackerApp(App):
 
         if isinstance(self.screen, DashboardScreen):
             self.screen.refresh_counters()
+        elif isinstance(self.screen, GraphScreen):
+            self.screen.refresh_data()
 
         self.notify(f"Refreshed at {now.strftime('%H:%M:%S UTC')} (Full sync engine in Stage 4)", title="Stage 4 — Refresh")
 
@@ -288,8 +290,8 @@ class WalletTrackerApp(App):
         self.notify("Filter by group, network, project, and activity scheduled for Stage 2", title="Stage 2 — Filters")
 
     def action_graph(self) -> None:
-        """Notify that Graph interactive view is scheduled for Stage 7."""
-        self.notify("NetworkX relationship graph canvas scheduled for Stage 7", title="Stage 7 — Graph")
+        """Navigate to Relationship Graph screen."""
+        self.nav_to("graph")
 
     def action_search(self) -> None:
         """Search hotkey handler."""
