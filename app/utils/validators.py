@@ -1,6 +1,8 @@
 """Address validation and normalization utilities for EVM and Solana."""
 from __future__ import annotations
 
+import functools
+
 _HEX_CHARS = set("0123456789abcdefABCDEF")
 _BASE58_ALPHABET = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 _KECCAK_ROTC = (
@@ -99,6 +101,7 @@ def _keccak_256(data: bytes) -> bytes:
     return bytes(out_bytes)
 
 
+@functools.lru_cache(maxsize=4096)
 def _compute_checksum_address(hex_addr: str) -> str:
     """Compute EIP-55 checksum address from lowercase 40-character hex address."""
     h = _keccak_256(hex_addr.encode("ascii")).hex()
@@ -108,6 +111,7 @@ def _compute_checksum_address(hex_addr: str) -> str:
     return "0x" + checksummed
 
 
+@functools.lru_cache(maxsize=4096)
 def normalize_evm_address(value: str) -> str:
     """Normalize and validate an EVM address according to EIP-55 checksum rules.
 

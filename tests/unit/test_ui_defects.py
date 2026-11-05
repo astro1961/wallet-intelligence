@@ -29,16 +29,16 @@ async def test_bottom_hotkey_bar_does_not_clip_at_110_columns() -> None:
         assert "Qu…" not in rendered
 
 
+@pytest.mark.parametrize("idx", range(1, 10))
 @pytest.mark.asyncio
-async def test_screen_descriptions_use_static_wrap() -> None:
+async def test_screen_descriptions_use_static_wrap(idx: int) -> None:
     """Defect 2: Screen descriptions use Static with wrapping enabled."""
     app = WalletTrackerApp()
     async with app.run_test(size=(100, 30)) as pilot:
-        for idx in range(1, 10):
-            await pilot.press(str(idx))
-            await pilot.pause()
-            desc = app.screen.query_one(".screen-desc")
-            assert isinstance(desc, Static), f"Screen {app.screen.id} description must be Static"
+        await pilot.press(str(idx))
+        await pilot.pause()
+        desc = app.screen.query_one(".screen-desc")
+        assert isinstance(desc, Static), f"Screen {app.screen.id} description must be Static"
 
 
 @pytest.mark.asyncio

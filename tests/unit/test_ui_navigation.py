@@ -19,20 +19,20 @@ SCREEN_KEYS = [
 ]
 
 
+@pytest.mark.parametrize("idx,key", list(enumerate(SCREEN_KEYS, start=1)))
 @pytest.mark.asyncio
-async def test_numeric_keys_switch_screens(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_numeric_keys_switch_screens(idx: int, key: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Requirement 2: all nine hotkeys switch to the expected screen id."""
-    db_file = tmp_path / "nav_keys.db"
+    db_file = tmp_path / f"nav_keys_{idx}.db"
     monkeypatch.setenv("WIT_DB_PATH", str(db_file))
 
     from app.application import WalletTrackerApp
 
     app = WalletTrackerApp()
     async with app.run_test(size=(120, 35)) as pilot:
-        for idx, key in enumerate(SCREEN_KEYS, start=1):
-            await pilot.press(str(idx))
-            await pilot.pause()
-            assert app.screen.id == key, f"Key {idx} did not switch to {key}, got {app.screen.id}"
+        await pilot.press(str(idx))
+        await pilot.pause()
+        assert app.screen.id == key, f"Key {idx} did not switch to {key}, got {app.screen.id}"
 
 
 @pytest.mark.asyncio

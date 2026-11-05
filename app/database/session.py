@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -17,6 +19,25 @@ logger = logging.getLogger(__name__)
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
+_template_db_path: Path | None = None
+
+
+def set_schema_template(path: Path | str | None) -> None:
+    """Set or clear the session-scoped migrated schema template path."""
+    global _template_db_path
+    _template_db_path = Path(path) if path is not None else None
+
+
+def get_schema_template() -> Path | None:
+    """Get the session-scoped migrated schema template path, if configured."""
+    if _template_db_path is not None and _template_db_path.is_file():
+        return _template_db_path
+    env_path = os.environ.get("WIT_DB_TEMPLATE")
+    if env_path:
+        p = Path(env_path)
+        if p.is_file():
+            return p
+    return None
 
 
 def session_factory(engine: Engine) -> sessionmaker[Session]:
@@ -80,8 +101,22 @@ def init_db(cfg: AppConfig | None = None) -> Engine:
     if db_file.parent and str(db_file.parent) != ".":
         db_file.parent.mkdir(parents=True, exist_ok=True)
 
+    template = get_schema_template()
+    copied_from_template = False
+    if template is not None and str(db_file) != ":memory:":
+        if not db_file.exists():
+            shutil.copyfile(template, db_file)
+        copied_from_template = True
+
     _engine = create_engine_for(cfg)
     _session_factory = session_factory(_engine)
+
+    if copied_from_template:
+        return _engine
+
+    if str(db_file) == ":memory:":
+        Base.metadata.create_all(_engine)
+        return _engine
 
     # Prefer programmatic alembic migration, fallback to Base.metadata.create_all
     migrated = False

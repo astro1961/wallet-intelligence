@@ -48,7 +48,7 @@ def create_test_app() -> tuple[WalletTrackerApp, int, int]:
 @pytest.mark.asyncio
 async def test_show_participation_second_row_not_overwritten():
     """1. show_participation(project_id_of_second_row) -> panel shows that project after a pause."""
-    app, p1_id, p2_id = create_test_app()
+    app, p1_id, _p2_id = create_test_app()
     async with app.run_test(size=(140, 45)) as pilot:
         await pilot.press("4")
         await pilot.pause()
@@ -74,7 +74,7 @@ async def test_show_participation_second_row_not_overwritten():
 @pytest.mark.asyncio
 async def test_table_move_cursor_follows_again():
     """2. table.move_cursor(0) afterwards -> panel follows the cursor again."""
-    app, p1_id, p2_id = create_test_app()
+    app, p1_id, _p2_id = create_test_app()
     async with app.run_test(size=(140, 45)) as pilot:
         await pilot.press("4")
         await pilot.pause()
@@ -100,7 +100,7 @@ async def test_table_move_cursor_follows_again():
 @pytest.mark.asyncio
 async def test_filter_hiding_selected_project_resets_to_neutral_placeholder():
     """3. Filter that hides the selected project -> panel shows a neutral placeholder, not stale data."""
-    app, p1_id, p2_id = create_test_app()
+    app, _p1_id, p2_id = create_test_app()
     async with app.run_test(size=(140, 45)) as pilot:
         await pilot.press("4")
         await pilot.pause()

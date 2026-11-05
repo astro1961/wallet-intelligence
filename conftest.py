@@ -18,5 +18,5 @@ if ROOT not in sys.path:
 def clean_env(monkeypatch):
     """Strip WIT_* overrides so tests never touch a real database."""
     for key in list(os.environ):
-        if key.startswith("WIT_"):
+        if key.startswith("WIT_") and key != "WIT_DB_TEMPLATE":
             monkeypatch.delenv(key, raising=False)
