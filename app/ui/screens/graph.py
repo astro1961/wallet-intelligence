@@ -146,24 +146,28 @@ class GraphScreen(BaseAppScreen):
 
                 # 3. Update neighbors
                 target_wallet = self.selected_wallet
-                if not target_wallet and options:
+                w_obj = gm._resolve_wallet(target_wallet) if target_wallet else None
+                if w_obj is None and options:
                     target_wallet = options[0][1]
                     self.selected_wallet = target_wallet
-                    with suppress(NoMatches):
-                        self.query_one("#wallet-select", Select).value = target_wallet
-
-                if target_wallet:
                     w_obj = gm._resolve_wallet(target_wallet)
-                    if w_obj:
-                        with suppress(NoMatches):
-                            lbl = self.query_one("#graph-selected-wallet", Label)
-                            disp = (
-                                f"Selected: {w_obj.name} ({_format_address(w_obj)})"
-                                if w_obj.name
-                                else f"Selected: {_format_address(w_obj)}"
-                            )
-                            lbl.update(disp)
-                    neighbors = gm.neighbors(target_wallet)
+
+                if w_obj is not None:
+                    addr = _format_address(w_obj)
+                    self.selected_wallet = addr
+                    with suppress(NoMatches):
+                        select_w = self.query_one("#wallet-select", Select)
+                        if select_w.value != addr:
+                            select_w.value = addr
+                    with suppress(NoMatches):
+                        lbl = self.query_one("#graph-selected-wallet", Label)
+                        disp = (
+                            f"Selected: {w_obj.name} ({addr})"
+                            if w_obj.name
+                            else f"Selected: {addr}"
+                        )
+                        lbl.update(disp)
+                    neighbors = gm.neighbors(w_obj)
                     self._update_neighbors_table(neighbors)
                 else:
                     self._update_neighbors_table([])
@@ -172,6 +176,9 @@ class GraphScreen(BaseAppScreen):
 
     def select_wallet(self, wallet: Wallet | str | int) -> None:
         """Select a wallet and render its neighbors."""
+        if wallet in (Select.BLANK, Select.NULL) or wallet is None:
+            return
+
         fact = self._get_session_factory()
         if fact is None:
             return
@@ -179,31 +186,34 @@ class GraphScreen(BaseAppScreen):
         with fact() as session:
             gm = GraphManager(session)
             w_obj = gm._resolve_wallet(wallet)
-            if w_obj is not None:
-                addr = _format_address(w_obj)
-                self.selected_wallet = addr
-                with suppress(NoMatches):
-                    self.query_one("#wallet-select", Select).value = addr
-                with suppress(NoMatches):
-                    lbl = self.query_one("#graph-selected-wallet", Label)
-                    disp = (
-                        f"Selected: {w_obj.name} ({addr})"
-                        if w_obj.name
-                        else f"Selected: {addr}"
-                    )
-                    lbl.update(disp)
-                neighbors = gm.neighbors(w_obj)
-                self._update_neighbors_table(neighbors)
-            else:
-                self.selected_wallet = str(wallet)
-                with suppress(NoMatches):
-                    lbl = self.query_one("#graph-selected-wallet", Label)
-                    lbl.update(f"Selected: {wallet}")
-                self._update_neighbors_table([])
+            if w_obj is None:
+                return
+
+            addr = _format_address(w_obj)
+            self.selected_wallet = addr
+            with suppress(NoMatches):
+                select_w = self.query_one("#wallet-select", Select)
+                if select_w.value != addr:
+                    select_w.value = addr
+            with suppress(NoMatches):
+                lbl = self.query_one("#graph-selected-wallet", Label)
+                disp = (
+                    f"Selected: {w_obj.name} ({addr})"
+                    if w_obj.name
+                    else f"Selected: {addr}"
+                )
+                lbl.update(disp)
+            neighbors = gm.neighbors(w_obj)
+            self._update_neighbors_table(neighbors)
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle wallet select dropdown changes."""
-        if event.select.id == "wallet-select" and event.value != Select.BLANK:
+        if (
+            event.select.id == "wallet-select"
+            and event.value != Select.BLANK
+            and event.value != Select.NULL
+            and event.value is not None
+        ):
             self.select_wallet(event.value)
 
     def _update_neighbors_table(self, neighbors: list[dict[str, Any]]) -> None:

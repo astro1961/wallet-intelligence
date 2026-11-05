@@ -739,3 +739,22 @@ notes, detected_at), `networkx>=3.3` в зависимостях. Не хват�
 `build_graph` (networkx.Graph по адресам, рёбра с relation_type/confidence), `neighbors`,
 `infer_from_transactions` (связь между двумя своими кошельками из Transfer), `export_json`, запрет
 float/UI в core. Запущен AGY (PID 1128922).
+
+---
+
+## 2026-11-05 12:50 — Этап 7 (Relationship Graph) принят. PLAN Этап 7 закрыт.
+
+- **8 (core `GraphManager`):** add_relation (нормализация адресов EIP-55, self-loop → ValueError,
+  идемпотентность по (from,to,type)), infer_from_transactions, neighbors (группировка по соседу с
+  приоритетом confidence), build_graph (networkx.Graph по адресам), export_json. Гейт 8: `6 passed`.
+- **8B (экран Graph):** статистика (components/density/nodes/edges), селектор кошелька, таблица
+  соседей. Гейт 8B: `3 passed`.
+- **B11 (дефект UI):** `selected_wallet` затирался sentinel'ом `Select.NULL` — Textual шлёт
+  `Select.Changed` со значением `Select.NULL` при инициализации/`set_options()`, а
+  `on_select_changed` фильтровал только `Select.BLANK`. Фикс: игнорировать оба sentinel и не трогать
+  выбор, если значение не резолвится в `Wallet`.
+
+**Урок приёмки:** в Textual `Select` генерит `Changed` со значением `Select.NULL` (не `BLANK`) при
+инициализации и при `set_options()`; обработчики `on_select_changed` должны игнорировать оба
+sentinel, иначе отложенное событие затирает состояние экрана. (Аналогия с B9: отложенные события
+Textual перетирают явные действия.)
