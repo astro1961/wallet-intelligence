@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.activity_tracker import ActivityTracker
 from app.core.balance_manager import save_native_balance
@@ -121,11 +122,14 @@ class SyncEngine:
                     error=err,
                 )
 
+            net_id = net.id
+            net_name = net.name
+
             # Start sync job
             now = datetime.now(UTC)
             job = SyncJob(
                 wallet_id=wallet.id,
-                network_id=net.id,
+                network_id=net_id,
                 job_type="wallet_sync",
                 status="running",
                 started_at=now,
@@ -362,14 +366,38 @@ class SyncEngine:
                 )
             except Exception as exc:  # noqa: BLE001
                 err_msg = str(exc)
-                job.status = "failed"
-                job.finished_at = datetime.now(UTC)
-                job.error_message = err_msg
-                session.commit()
-                logger.warning("Sync failed for wallet %s on %s: %s", wallet.id, net.name, err_msg)
+                try:
+                    session.rollback()
+                except SQLAlchemyError as rb_exc:
+                    logger.debug("Failed to rollback session: %s", rb_exc)
+
+                target_net_name = net_name if "net_name" in locals() else (network or "unknown")
+                logger.warning("Sync failed for wallet %s on %s: %s", wallet_id, target_net_name, err_msg)
+
+                if "net_id" in locals() and "now" in locals():
+                    try:
+                        failed_job = SyncJob(
+                            wallet_id=wallet_id,
+                            network_id=net_id,
+                            job_type="wallet_sync",
+                            status="failed",
+                            started_at=now,
+                            finished_at=datetime.now(UTC),
+                            error_message=err_msg,
+                            created_at=now,
+                        )
+                        session.add(failed_job)
+                        session.commit()
+                    except SQLAlchemyError as job_exc:
+                        logger.debug("Failed to record failed sync job: %s", job_exc)
+                        try:
+                            session.rollback()
+                        except SQLAlchemyError as rb2_exc:
+                            logger.debug("Failed second rollback: %s", rb2_exc)
+
                 return SyncReport(
-                    wallet_id=wallet.id,
-                    network=net.name,
+                    wallet_id=wallet_id,
+                    network=target_net_name,
                     status="error",
                     error=err_msg,
                 )

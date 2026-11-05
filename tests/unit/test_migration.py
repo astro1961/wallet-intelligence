@@ -25,11 +25,11 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     cfg = Config("alembic.ini")
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_file}")
 
-    # Upgrade to head (005)
+    # Upgrade to head (006)
     command.upgrade(cfg, "head")
     conn = sqlite3.connect(str(db_file))
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-    cols_005 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
+    cols_006 = {r[1] for r in conn.execute("PRAGMA table_info(balance_snapshots)").fetchall()}
     indexes_act = {r[1] for r in conn.execute("PRAGMA index_list(activities)").fetchall()}
     indexes_tx = {r[1] for r in conn.execute("PRAGMA index_list(transactions)").fetchall()}
     conn.close()
@@ -37,11 +37,20 @@ def test_migration_upgrade_downgrade_cycle(tmp_path: Path):
     assert "wallets" in tables
     assert "wallet_audit_log" in tables
     assert "alembic_version" in tables
-    assert "taken_at" not in cols_005
-    assert "snapshot_at" in cols_005
-    assert "block_number" in cols_005
+    assert "taken_at" not in cols_006
+    assert "snapshot_at" in cols_006
+    assert "block_number" in cols_006
     assert "uq_activity_wallet_tx_log" in indexes_act
     assert "uq_transaction_wallet_network_tx" in indexes_tx
+    assert "sqlite_autoindex_transactions_1" not in indexes_tx
+
+    # Downgrade 1 revision (to 005)
+    command.downgrade(cfg, "-1")
+    conn = sqlite3.connect(str(db_file))
+    indexes_tx_005 = {r[1] for r in conn.execute("PRAGMA index_list(transactions)").fetchall()}
+    conn.close()
+    assert "uq_transaction_wallet_network_tx" in indexes_tx_005
+    assert "sqlite_autoindex_transactions_1" in indexes_tx_005
 
     # Downgrade 1 revision (to 004)
     command.downgrade(cfg, "-1")

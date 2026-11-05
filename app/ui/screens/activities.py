@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-EMPTY_ACTIVITIES_MSG = "No activities yet — press **s** to sync your wallets."
+EMPTY_ACTIVITIES_MSG = "No activities yet — press s to sync your wallets."
 
 
 class ActivitiesScreen(BaseAppScreen):

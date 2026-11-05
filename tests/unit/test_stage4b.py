@@ -178,7 +178,7 @@ async def test_activities_type_filter_narrows_and_restores(tmp_path: Path, monke
         screen.set_network_filter("ethereum")
         assert "receive" in screen.activity_text
         screen.set_network_filter("polygon")
-        assert screen.activity_text == "No activities yet — press **s** to sync your wallets."
+        assert screen.activity_text == "No activities yet — press s to sync your wallets."
         screen.set_network_filter(None)
         assert "receive" in screen.activity_text
 
@@ -196,7 +196,7 @@ async def test_activities_empty_db_shows_empty_state(tmp_path: Path, monkeypatch
 
         screen = app.screen
         assert isinstance(screen, ActivitiesScreen)
-        assert screen.activity_text == "No activities yet — press **s** to sync your wallets."
+        assert screen.activity_text == "No activities yet — press s to sync your wallets."
 
 
 @pytest.mark.asyncio
