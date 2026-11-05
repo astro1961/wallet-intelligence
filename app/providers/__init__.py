@@ -14,6 +14,7 @@ from app.providers.evm_rpc import EvmRpcProvider
 from app.providers.factory import build_default_registry, create_provider_registry
 from app.providers.registry import ProviderRegistry
 from app.providers.rpc_failover import RpcFailoverProvider
+from app.providers.solana import SolanaProvider
 
 __all__ = [
     "BlockscoutProvider",
@@ -24,6 +25,7 @@ __all__ = [
     "ProviderResult",
     "ProviderStatus",
     "RpcFailoverProvider",
+    "SolanaProvider",
     "TransactionItem",
     "TransactionListResult",
     "build_default_registry",
