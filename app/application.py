@@ -23,14 +23,17 @@ from app.database.models import Wallet
 from app.database.session import init_db, session_factory
 from app.providers.factory import create_provider_registry
 from app.state import AppState
-from app.ui.screens.activities import ActivitiesScreen
+
+# Отключено: оставлены только Dashboard и Wallets (первые два пункта).
+# from app.ui.screens.activities import ActivitiesScreen
 from app.ui.screens.dashboard import DashboardScreen
-from app.ui.screens.defi import DeFiScreen
-from app.ui.screens.graph import GraphScreen
-from app.ui.screens.import_wallets import ImportScreen
-from app.ui.screens.networks import NetworksScreen
-from app.ui.screens.projects import ProjectsScreen
-from app.ui.screens.settings import SettingsScreen
+
+# from app.ui.screens.defi import DeFiScreen
+# from app.ui.screens.graph import GraphScreen
+# from app.ui.screens.import_wallets import ImportScreen
+# from app.ui.screens.networks import NetworksScreen
+# from app.ui.screens.projects import ProjectsScreen
+# from app.ui.screens.settings import SettingsScreen
 from app.ui.screens.wallets import WalletsScreen
 from app.ui.widgets.status_bar import StatusBar
 
@@ -46,33 +49,35 @@ class WalletTrackerApp(App):
     SCREENS: ClassVar[dict[str, type[Screen]]] = {
         "dashboard": DashboardScreen,
         "wallets": WalletsScreen,
-        "activities": ActivitiesScreen,
-        "projects": ProjectsScreen,
-        "defi": DeFiScreen,
-        "networks": NetworksScreen,
-        "graph": GraphScreen,
-        "import": ImportScreen,
-        "settings": SettingsScreen,
+        # Отключено: оставлены только Dashboard и Wallets (первые два пункта).
+        # "activities": ActivitiesScreen,
+        # "projects": ProjectsScreen,
+        # "defi": DeFiScreen,
+        # "networks": NetworksScreen,
+        # "graph": GraphScreen,
+        # "import": ImportScreen,
+        # "settings": SettingsScreen,
     }
 
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("1", "nav_to('dashboard')", "Dashboard"),
         Binding("2", "nav_to('wallets')", "Wallets"),
-        Binding("3", "nav_to('activities')", "Activities"),
-        Binding("4", "nav_to('projects')", "Projects"),
-        Binding("5", "nav_to('defi')", "DeFi"),
-        Binding("6", "nav_to('networks')", "Networks"),
-        Binding("7", "nav_to('graph')", "Graph"),
-        Binding("8", "nav_to('import')", "Import"),
-        Binding("9", "nav_to('settings')", "Settings"),
+        # Отключено: оставлены только первые два пункта.
+        # Binding("3", "nav_to('activities')", "Activities"),
+        # Binding("4", "nav_to('projects')", "Projects"),
+        # Binding("5", "nav_to('defi')", "DeFi"),
+        # Binding("6", "nav_to('networks')", "Networks"),
+        # Binding("7", "nav_to('graph')", "Graph"),
+        # Binding("8", "nav_to('import')", "Import"),
+        # Binding("9", "nav_to('settings')", "Settings"),
         Binding("q", "quit_app", "Quit"),
         Binding("a", "add_wallet", "Add Wallet"),
-        Binding("i", "import_wallets", "Import"),
+        # Binding("i", "import_wallets", "Import"),  # import screen disabled
         Binding("s", "sync_now", "Sync"),
         Binding("p", "toggle_pause", "Pause"),
         Binding("r", "refresh", "Refresh"),
         Binding("f", "filters", "Filters"),
-        Binding("g", "graph", "Graph"),
+        # Binding("g", "graph", "Graph"),  # graph screen disabled
         Binding("slash", "search", "Search", key_display="/"),
         Binding("escape", "escape", "Home / Back"),
         Binding("up", "sidebar_up", "Up", show=False),
@@ -280,8 +285,9 @@ class WalletTrackerApp(App):
 
         if isinstance(self.screen, DashboardScreen):
             self.screen.refresh_counters()
-        elif isinstance(self.screen, GraphScreen):
-            self.screen.refresh_data()
+        # Отключено: Graph screen disabled.
+        # elif isinstance(self.screen, GraphScreen):
+        #     self.screen.refresh_data()
 
         self.notify(f"Refreshed at {now.strftime('%H:%M:%S UTC')} (Full sync engine in Stage 4)", title="Stage 4 — Refresh")
 

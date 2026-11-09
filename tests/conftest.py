@@ -40,3 +40,27 @@ def migrated_db(schema_template: Path, tmp_path: Path, monkeypatch: pytest.Monke
     shutil.copyfile(schema_template, db_file)
     monkeypatch.setenv("WIT_DB_PATH", str(db_file))
     return db_file
+
+
+# Экраны Activities/Projects/DeFi/Networks/Graph/Import/Settings отключены —
+# оставлены только Dashboard и Wallets. Тесты этих экранов пропускаются.
+_DISABLED_SCREEN_TEST_FILES = {
+    "test_stage4b.py",
+    "test_stage5b.py",
+    "test_stage5c.py",
+    "test_stage6.py",
+    "test_stage7a.py",
+    "test_stage8.py",
+    "test_ui_import.py",
+    "test_data_screens.py",
+    "test_import.py",
+}
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
+    """Skip tests that cover disabled screens."""
+    for item in items:
+        if any(name in str(item.path) for name in _DISABLED_SCREEN_TEST_FILES):
+            item.add_marker(
+                pytest.mark.skip(reason="Screen disabled: only Dashboard/Wallets remain")
+            )

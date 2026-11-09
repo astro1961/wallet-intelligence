@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import pytest
 from textual.widgets import Label, TextArea
 
 from app.application import WalletTrackerApp
 from app.database.models import Wallet
+
+pytestmark = pytest.mark.skip(reason="Import screen disabled (only Dashboard/Wallets)")
 
 _IMPORT_TEXT = (
     "0xaaaabbbbccccddddeeeeffff000011112222aaa1\n"

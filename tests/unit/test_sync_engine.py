@@ -364,3 +364,27 @@ def test_sync_wallet_nonexistent_wallet(session_factory):
     assert report.status == "error"
     assert "not found" in (report.error or "").lower()
 
+
+def test_resolve_network_fallback_with_multiple_enabled(session_factory):
+    """Fallback выбирает первую enabled-сеть и не падает при нескольких сетях (BUG-002)."""
+    with session_factory() as s:
+        s.add_all(
+            [
+                Network(name="ethereum", chain_type="evm", chain_id=1, enabled=True),
+                Network(name="arbitrum", chain_type="evm", chain_id=42161, enabled=True),
+            ]
+        )
+        w = Wallet(address="0x9999999999999999999999999999999999999999", name="MultiNet")
+        s.add(w)
+        s.commit()
+        wid = w.id
+
+    engine = SyncEngine(session_factory, ProviderRegistry([]), AppConfig())
+    with session_factory() as s:
+        wallet = s.get(Wallet, wid)
+        net = engine._resolve_network(s, wallet, None)
+
+    assert net is not None
+    assert net.name == "ethereum"  # первая по id, а не MultipleResultsFound
+
+

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
 from textual.widgets import DataTable
 
 from app.application import WalletTrackerApp
 from app.database.models import Activity, Network, Project
 from tests.fixtures.factories import make_wallet
+
+pytestmark = pytest.mark.skip(reason="Screens Activities/Projects/Graph disabled (only Dashboard/Wallets)")
 
 
 async def test_activities_screen_shows_activity(app_env) -> None:

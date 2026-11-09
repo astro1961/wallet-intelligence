@@ -9,13 +9,6 @@ from textual.widgets import Input
 SCREEN_KEYS = [
     "dashboard",
     "wallets",
-    "activities",
-    "projects",
-    "defi",
-    "networks",
-    "graph",
-    "import",
-    "settings",
 ]
 
 
@@ -46,32 +39,24 @@ async def test_sidebar_keyboard_navigation(tmp_path: Path, monkeypatch: pytest.M
     app = WalletTrackerApp()
     async with app.run_test(size=(120, 35)) as pilot:
         # Start on dashboard (index 0)
+
         assert app.screen.id == "dashboard"
-        
+
         # Press down -> moves cursor to index 1 (wallets)
         await pilot.press("down")
         await pilot.pause()
-        
+
         # Press enter -> activates wallets screen
         await pilot.press("enter")
         await pilot.pause()
         assert app.screen.id == "wallets"
 
-        # Press down twice -> moves cursor from 1 to 2 (activities) to 3 (projects)
-        await pilot.press("down")
-        await pilot.pause()
-        await pilot.press("down")
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        assert app.screen.id == "projects"
-
-        # Press up -> moves to 2 (activities)
+        # Press up -> back to dashboard (index 0)
         await pilot.press("up")
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
-        assert app.screen.id == "activities"
+        assert app.screen.id == "dashboard"
 
 
 @pytest.mark.asyncio
@@ -84,10 +69,10 @@ async def test_escape_returns_to_dashboard(tmp_path: Path, monkeypatch: pytest.M
 
     app = WalletTrackerApp()
     async with app.run_test(size=(120, 35)) as pilot:
-        # Switch to settings (key 9)
-        await pilot.press("9")
+        # Switch to wallets (key 2)
+        await pilot.press("2")
         await pilot.pause()
-        assert app.screen.id == "settings"
+        assert app.screen.id == "wallets"
 
         # Press escape -> back to dashboard
         await pilot.press("escape")

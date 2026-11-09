@@ -9,13 +9,6 @@ from app.application import WalletTrackerApp
 ALL_SCREENS = [
     "dashboard",
     "wallets",
-    "activities",
-    "projects",
-    "defi",
-    "networks",
-    "graph",
-    "import",
-    "settings",
 ]
 
 

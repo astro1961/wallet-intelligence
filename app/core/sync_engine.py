@@ -133,7 +133,7 @@ class SyncEngine:
         # Fallback to first enabled network in DB
         net = session.execute(
             select(Network).where(Network.enabled == True).order_by(Network.id)
-        ).scalar_one_or_none()
+        ).scalars().first()
         return net
 
     def sync_wallet(self, wallet_id: int, network: str | None = None) -> SyncReport:
