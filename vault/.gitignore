@@ -1,0 +1,8 @@
+# Obsidian personal files (не коммитим)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+.trash/
+
+# attachments: при росте — Git LFS
+# 07-Tests/attachments/*.png
