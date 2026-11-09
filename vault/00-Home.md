@@ -4,7 +4,7 @@ updated: 2026-11-09
 current_stage: "[[STAGE-01]]"
 open_bugs: 0
 backlog_bugs: 0
-verdict: "E2E зелёный (13/13)"
+verdict: "E2E зелёный (18/18)"
 ---
 
 # Wallet Intelligence — Home
