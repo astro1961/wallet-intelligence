@@ -3,8 +3,8 @@ vault: wallet-intelligence
 updated: 2026-11-09
 current_stage: "[[STAGE-01]]"
 open_bugs: 0
-backlog_bugs: 1
-verdict: "в работе (BUG-001 в бэклоге)"
+backlog_bugs: 0
+verdict: "E2E зелёный (13/13)"
 ---
 
 # Wallet Intelligence — Home

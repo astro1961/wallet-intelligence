@@ -921,6 +921,6 @@ class DashboardScreen(BaseAppScreen):
         super().on_mount()
         self.refresh_data()
 
-    def on_show(self) -> None:
-        """Refresh data whenever the screen becomes visible (e.g. after adding a wallet)."""
+    def on_screen_resume(self) -> None:
+        """Refresh data when the screen is resumed (Textual sends ScreenResume, not Show)."""
         self.refresh_data()
